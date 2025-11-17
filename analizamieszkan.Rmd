@@ -1,0 +1,38 @@
+---
+title: "Analiza Danych"
+author: "Veronika Krasnianska, Olena Dovhopola"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+install.packages("naniar")
+library(readr)
+library(dplyr)
+library(naniar)
+mieszkania <- read_csv("apartments_pl_2024_06.csv")
+dane<-filter(mieszkania, city=="gdansk")
+dane_gdansk <- dane %>%
+  select(-c(id,longitude,latitude, condition, buildingMaterial))
+vis_miss(dane_gdansk)
+miss_var_summary(dane_gdansk)
+```
+
+```{r}
+install.packages("finalfit")
+library(finalfit)
+missing_pattern(dane_gdansk)
+```
+
+```{r przekodowanie}
+dane_gdansk$hasParkingSpace <- ifelse(dane_gdansk$hasParkingSpace == "yes", 1, 0)
+dane_gdansk$hasBalcony      <- ifelse(dane_gdansk$hasBalcony == "yes", 1, 0)
+dane_gdansk$hasElevator     <- ifelse(dane_gdansk$hasElevator == "yes", 1, 0)
+dane_gdansk$hasSecurity     <- ifelse(dane_gdansk$hasSecurity == "yes", 1, 0)
+dane_gdansk$hasStorageRoom  <- ifelse(dane_gdansk$hasStorageRoom == "yes", 1, 0)
+```
+
