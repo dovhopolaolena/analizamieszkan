@@ -1,0 +1,24 @@
+```{r}
+install.packages("naniar")
+library(readr)
+library(dplyr)
+library(naniar)
+mieszkania<-read_csv("apartments_pl_2024_06.csv")
+dane<-filter(mieszkania, city=="gdansk")
+dane_gdansk <- dane %>%
+  select(-c(id,longitude,latitude, condition, buildingMaterial,city))
+vis_miss(dane_gdansk)
+mcar_test(dane_gdansk %>%
+            select(c(type,floor,buildYear,hasElevator)))
+miss_var_summary(dane_gdansk)
+gg_miss_var(dane_gdansk)
+```
+
+
+
+
+```{r}
+install.packages("finalfit")
+library(finalfit)
+missing_pattern(dane_gdansk)
+```
