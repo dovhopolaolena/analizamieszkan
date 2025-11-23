@@ -1,8 +1,14 @@
 ```{r}
 install.packages("naniar")
+install.packages("finalfit")
 library(readr)
 library(dplyr)
 library(naniar)
+library(finalfit)
+library(mice)
+```
+
+```{r}
 mieszkania<-read_csv("apartments_pl_2024_06.csv")
 dane<-filter(mieszkania, city=="gdansk")
 dane_gdansk <- dane %>%
@@ -12,13 +18,25 @@ mcar_test(dane_gdansk %>%
             select(c(type,floor,buildYear,hasElevator)))
 miss_var_summary(dane_gdansk)
 gg_miss_var(dane_gdansk)
-```
-
-
-
-
-```{r}
-install.packages("finalfit")
-library(finalfit)
 missing_pattern(dane_gdansk)
 ```
+ floor, rokbudowy, czy jest winda, odleglosc od uni. Type i reszta zostaje z brakami danych, bo nie oplaca sie 
+ mice dla zmiennych numerycznych buduje model liniowy, dla kategorzycznych logitowy 
+```{r}
+names(dane_gdansk)
+```
+ ggmice
+
+```{r}
+md.pattern(dane_gdansk)        # таблиця шаблонів пропусків
+summary(is.na(dane_gdansk))    # швидка статистика NA
+aggr_plot <- VIM::aggr(dane_gdansk)  # опціонально: VIM::aggr для візуалізації
+# m = кількість імітованих наборів, method - метод за умовчанням ('pmm' для числових)
+set.seed(123)
+imp <- mice(dane_gdansk, m = 5, method = 'pmm', maxit = 10)
+plot(imp)                 # сліди збіжності (iter vs imputed values)
+densityplot(imp)          # щільності імпутованих vs спостережених
+stripplot(imp, pch = 20)  # розподіл імпутацій по змінних
+
+```
+rozdzial 2 sprawdzanie spojnosci danych 
