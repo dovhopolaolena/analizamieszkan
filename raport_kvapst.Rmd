@@ -13,30 +13,73 @@ mieszkania<-read_csv("apartments_pl_2024_06.csv")
 dane<-filter(mieszkania, city=="gdansk")
 dane_gdansk <- dane %>%
   select(-c(id,longitude,latitude, condition, buildingMaterial,city))
-vis_miss(dane_gdansk)
-mcar_test(dane_gdansk %>%
-            select(c(type,floor,buildYear,hasElevator)))
+```
+floor, rokbudowy, czy jest winda, odleglosc od uni. Type i reszta zostaje z brakami danych, bo nie oplaca sie 
+
+ mice dla zmiennych numerycznych buduje model liniowy, dla kategorzycznych logitowy 
+ 
+```{r}
+mcar_test(dane_gdansk)
+```
+
+W celu określenia mechanizmu braków danych przeprowadzono test Little MCAR. Wynik testu był istotny statystycznie (χ² = 2374.25, df = 569, p < 0.001), co pozwala odrzucić hipotezę o całkowicie losowym charakterze braków (MCAR). Oznacza to, że zmienne w zbiorze zawierają braki zależne od innych informacji (MAR) lub od wartości samej zmiennej (MNAR). Braki danych nie mają więc charakteru losowego i wymagają zastosowania zaawansowanej metody imputacji, takiej jak MICE.
+
+```{r}
 miss_var_summary(dane_gdansk)
 gg_miss_var(dane_gdansk)
+vis_miss(dane_gdansk)
+gg_miss_upset(dane_gdansk)
 missing_pattern(dane_gdansk)
+aggr_plot <- VIM::aggr(dane_gdansk) 
+
 ```
- floor, rokbudowy, czy jest winda, odleglosc od uni. Type i reszta zostaje z brakami danych, bo nie oplaca sie 
- mice dla zmiennych numerycznych buduje model liniowy, dla kategorzycznych logitowy 
-```{r}
-names(dane_gdansk)
-```
+ 
+ W zbiorze danych przeprowadzono analizę braków, której celem było określenie ich zakresu, struktury oraz mechanizmu powstawania. Łączny odsetek braków wyniósł około 3%, jednak nie były one równomiernie rozłożone między zmiennymi. Najwięcej braków odnotowano w zmiennych type, floor oraz buildYear, co wskazuje, że dotyczą one głównie informacji opisujących cechy budynku. Pozostałe zmienne charakteryzowały się znikomym poziomem braków.
+
+Wizualizacje braków, w tym mapy ciepła oraz wykresy typu vis_miss i UpSet Plot, wykazały istnienie wyraźnych wzorców współwystępowania brakujących wartości, co sugeruje, że nie mają one charakteru przypadkowego. 
+
+Ze względu na nielosowy charakter braków oraz ich koncentrację w wybranych zmiennych, do uzupełnienia danych zastosowano metodę imputacji wielokrotnej MICE. Metoda ta pozwala odtworzyć brakujące wartości w sposób zgodny z zależnościami występującymi w zbiorze, ograniczając ryzyko zniekształcenia wyników dalszej analizy. Zmienne o minimalnej liczbie braków pozostawiono bez imputacji, gdyż ich wpływ na modele jest pomijalny. Dzięki przeprowadzonej imputacji uzyskano kompletny i spójny zbiór danych, odpowiedni do kolejnych etapów modelowania.
+
  ggmice
 
 ```{r}
-md.pattern(dane_gdansk)        # таблиця шаблонів пропусків
-summary(is.na(dane_gdansk))    # швидка статистика NA
-aggr_plot <- VIM::aggr(dane_gdansk)  # опціонально: VIM::aggr для візуалізації
-# m = кількість імітованих наборів, method - метод за умовчанням ('pmm' для числових)
+dane_gdansk$hasElevator <- as.factor(dane_gdansk$hasElevator)
+dane_gdansk$type <- as.factor(dane_gdansk$type)
+
+methods <- make.method(dane_gdansk)
+methods[] <- ""
+
+methods["floor"]           <- "pmm"    
+methods["buildYear"]       <- "pmm"
+methods["hasElevator"]     <- "logreg"
+methods["collegeDistance"] <- "pmm"
+   
+
+pred <- make.predictorMatrix(dane_gdansk)
+pred[,] <- 0   
+
+pred_floor <- c("floorCount", "rooms", "squareMeters",
+                "buildYear", "hasElevator",
+                "centreDistance", "poiCount")
+
+pred["floor", pred_floor] <- 1
+
+pred[, "type"] <- 0
+pred["type", ] <- 0
+
 set.seed(123)
-imp <- mice(dane_gdansk, m = 5, method = 'pmm', maxit = 10)
-plot(imp)                 # сліди збіжності (iter vs imputed values)
-densityplot(imp)          # щільності імпутованих vs спостережених
-stripplot(imp, pch = 20)  # розподіл імпутацій по змінних
+imp <- mice(
+  dane_gdansk,
+  method = methods,
+  predictorMatrix = pred,
+  m = 5,
+  maxit = 10,
+  ridge = 1e-5
+)
+
+dane_imputed <- complete(imp, 1)
+
+
 
 ```
 rozdzial 2 sprawdzanie spojnosci danych 
