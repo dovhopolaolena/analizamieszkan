@@ -80,6 +80,32 @@ imp <- mice(
 dane_imputed <- complete(imp, 1)
 
 
+plot(imp)
+library(ggmice)
+
+hist(dane_gdansk$floor)
+densityplot(imp, ~ floor)
+xyplot(imp, floor ~ buildYear)
+summary(complete(imp, "long"))
+
+
+
 
 ```
+W zbiorze danych imputacją objęto wyłącznie zmienne z udziałem braków przekraczającym 3%, z wyłączeniem zmiennej type, której zgodnie z zaleceniem prowadzącego nie imputowano. Ostatecznie uzupełniono cztery zmienne: floor, buildYear, hasElevator oraz collegeDistance.
+
+Typy zmiennych zostały odpowiednio przygotowane: hasElevator oraz type zadeklarowano jako zmienne kategoryczne (factor), natomiast floor pozostawiono jako zmienną liczbową. Jest to istotne, ponieważ pakiet mice dobiera metodę imputacji na podstawie typu danych.
+
+Do imputacji zmiennych liczbowych (floor, buildYear, collegeDistance) zastosowano metodę PMM (Predictive Mean Matching), która dobiera brakujące wartości z rzeczywistych obserwacji o podobnych przewidywanych wartościach, dzięki czemu zachowuje naturalny rozkład danych. Binarną zmienną hasElevator imputowano metodą regresji logistycznej (logreg), co gwarantuje pozostanie wartości w zakresie 0/1.
+
+W celu zwiększenia stabilności imputacji ograniczono liczbę predyktorów używanych do przewidywania zmiennej floor jedynie do zmiennych merytorycznie powiązanych (m.in. floorCount, rooms, squareMeters, buildYear, centreDistance, poiCount). Dodatkowo zmienną type wyłączono z macierzy predyktorów, aby nie wpływała ona na modele imputacyjne ze względu na własne braki. Zastosowano również niewielką regularyzację (ridge = 1e−5), co zapobiegało problemom numerycznym.
+
+Imputację przeprowadzono funkcją mice() z pięcioma iteracjami kompletnego zestawu danych (m = 5). Kompletny zbiór uzyskano poleceniem complete(imp, 1). Zastosowane podejście pozwoliło uzyskać realistyczne i statystycznie poprawne uzupełnienie braków danych, zgodnie z wytycznymi prowadzącego
+
+
+
+
 rozdzial 2 sprawdzanie spojnosci danych 
+
+
+
