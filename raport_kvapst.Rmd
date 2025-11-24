@@ -24,6 +24,8 @@ mcar_test(dane_gdansk)
 
 W celu określenia mechanizmu braków danych przeprowadzono test Little MCAR. Wynik testu był istotny statystycznie (χ² = 2374.25, df = 569, p < 0.001), co pozwala odrzucić hipotezę o całkowicie losowym charakterze braków (MCAR). Oznacza to, że zmienne w zbiorze zawierają braki zależne od innych informacji (MAR) lub od wartości samej zmiennej (MNAR). Braki danych nie mają więc charakteru losowego i wymagają zastosowania zaawansowanej metody imputacji, takiej jak MICE.
 
+ 2.1 Braki danych 
+ 
 ```{r}
 miss_var_summary(dane_gdansk)
 gg_miss_var(dane_gdansk)
@@ -31,7 +33,10 @@ vis_miss(dane_gdansk)
 gg_miss_upset(dane_gdansk)
 missing_pattern(dane_gdansk)
 aggr_plot <- VIM::aggr(dane_gdansk) 
-
+gg_miss_fct(x=dane_gdansk,fct=collegeDistance)
+gg_miss_fct(x=dane_gdansk,fct=type)
+gg_miss_fct(x=dane_gdansk,fct=floor)
+gg_miss_fct(x=dane_gdansk,fct=hasElevator)
 ```
  
  W zbiorze danych przeprowadzono analizę braków, której celem było określenie ich zakresu, struktury oraz mechanizmu powstawania. Łączny odsetek braków wyniósł około 3%, jednak nie były one równomiernie rozłożone między zmiennymi. Najwięcej braków odnotowano w zmiennych type, floor oraz buildYear, co wskazuje, że dotyczą one głównie informacji opisujących cechy budynku. Pozostałe zmienne charakteryzowały się znikomym poziomem braków.
@@ -77,9 +82,11 @@ imp <- mice(
 )
 
 dane_imputed <- complete(imp, 1)
-
+ggplot()+
+  geom_miss_point(data = dane_gdansk, aes(x = floor, y = buildYear , color = "red"))
 plot(imp)
-library(ggmice)
+
+
 
 hist(dane_gdansk$floor)
 densityplot(imp, ~ floor)
@@ -108,17 +115,18 @@ Analiza podsumowania danych po imputacji potwierdza, że proces wielokrotnej imp
 Zakresy wartości są racjonalne — nie pojawiły się wartości nierealne (np. ujemne odległości, nierealne lata budowy czy zerowe piętra). Cena nieruchomości również mieści się w realnym zakresie obserwowanym w danych wejściowych. Wszystko to potwierdza, że imputacja została wykonana poprawnie, a dane mogą być bezpiecznie wykorzystane w dalszej analizie ekonometrycznej i modelowaniu.
 
 ```{r}
-summary(dane_imputed)
-sum(duplicated(dane_imputed))
-str(dane_imputed)
+
 ```
 
 rozdzial 2 sprawdzanie spojnosci danych 
-
+srtrip plot dla danych po imputacji 
 ```{r}
+sum(duplicated(dane_imputed))
+dane_clean<-distinct(dane_imputed)
+sum(duplicated(dane_clean))
+
 install.packages("validate")
 library(validate)
-
 rules_hard <- validator(
 
   squareMeters > 0,
@@ -184,4 +192,15 @@ rules_soft <- validator(
 out_soft <- confront(dane_imputed, rules_soft)
 summary(out_soft)
 ```
+	
+```{r}
+# bledy (wstawiamy NA), duplicaty, braki (byo 21 ) 
+# radzenie sobie z bledami
 
+
+
+
+
+```
+
+dane jakosciowe 
