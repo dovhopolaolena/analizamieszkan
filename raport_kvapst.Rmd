@@ -54,7 +54,6 @@ methods["buildYear"]       <- "pmm"
 methods["hasElevator"]     <- "logreg"
 methods["collegeDistance"] <- "pmm"
    
-
 pred <- make.predictorMatrix(dane_gdansk)
 pred[,] <- 0   
 
@@ -79,7 +78,6 @@ imp <- mice(
 
 dane_imputed <- complete(imp, 1)
 
-
 plot(imp)
 library(ggmice)
 
@@ -91,7 +89,8 @@ summary(complete(imp, "long"))
 mcar_test(dane_imputed)
 miss_var_summary(dane_imputed)
 
-
+library(readr)
+write_csv(dane_imputed, "dane_gdansk_imputed.csv")
 
 ```
 W zbiorze danych imputacją objęto wyłącznie zmienne z udziałem braków przekraczającym 3%, z wyłączeniem zmiennej type, której zgodnie z zaleceniem prowadzącego nie imputowano. Ostatecznie uzupełniono cztery zmienne: floor, buildYear, hasElevator oraz collegeDistance.
@@ -104,10 +103,85 @@ W celu zwiększenia stabilności imputacji ograniczono liczbę predyktorów uży
 
 Imputację przeprowadzono funkcją mice() z pięcioma iteracjami kompletnego zestawu danych (m = 5). Kompletny zbiór uzyskano poleceniem complete(imp, 1). Zastosowane podejście pozwoliło uzyskać realistyczne i statystycznie poprawne uzupełnienie braków danych, zgodnie z wytycznymi prowadzącego
 
+Analiza podsumowania danych po imputacji potwierdza, że proces wielokrotnej imputacji (MICE) przebiegł prawidłowo. Wszystkie brakujące wartości zostały uzupełnione, co widać po braku obserwacji oznaczonych jako NA. Wartości minimalne, maksymalne oraz kwartylowe w imputowanych zmiennych pozostają zgodne z charakterystyką danych pierwotnych, co wskazuje, że imputacja nie zniekształciła ani rozkładu, ani zmienności zmiennych.
 
+Zakresy wartości są racjonalne — nie pojawiły się wartości nierealne (np. ujemne odległości, nierealne lata budowy czy zerowe piętra). Cena nieruchomości również mieści się w realnym zakresie obserwowanym w danych wejściowych. Wszystko to potwierdza, że imputacja została wykonana poprawnie, a dane mogą być bezpiecznie wykorzystane w dalszej analizie ekonometrycznej i modelowaniu.
 
+```{r}
+summary(dane_imputed)
+sum(duplicated(dane_imputed))
+str(dane_imputed)
+```
 
 rozdzial 2 sprawdzanie spojnosci danych 
 
+```{r}
+install.packages("validate")
+library(validate)
 
+rules_hard <- validator(
+
+  squareMeters > 0,
+  squareMeters <= 250,
+
+  rooms >= 1,
+  rooms <= 8,         
+
+  squareMeters >= rooms * 8,      
+  squareMeters <= rooms * 40,     
+
+  floor >= 0 | is.na(floor),     
+  floorCount >= 1 | is.na(floorCount),
+  floor <= floorCount | is.na(floor) | is.na(floorCount),
+
+  buildYear >= 1850,
+  buildYear <= 2025,
+
+  centreDistance >= 0,
+  schoolDistance >= 0 | is.na(schoolDistance),
+  clinicDistance >= 0 | is.na(clinicDistance),
+  postOfficeDistance >= 0 | is.na(postOfficeDistance),
+  kindergartenDistance >= 0 | is.na(kindergartenDistance),
+  restaurantDistance >= 0 | is.na(restaurantDistance),
+  collegeDistance >= 0,
+  pharmacyDistance >= 0 | is.na(pharmacyDistance),
+
+  centreDistance <= 20,
+  schoolDistance <= 10 | is.na(schoolDistance),
+  clinicDistance <= 10 | is.na(clinicDistance),
+  postOfficeDistance <= 10 | is.na(postOfficeDistance),
+  kindergartenDistance <= 10 | is.na(kindergartenDistance),
+  restaurantDistance <= 10 | is.na(restaurantDistance),
+  collegeDistance <= 15,
+  pharmacyDistance <= 10 | is.na(pharmacyDistance),
+
+  poiCount >= 0,
+  poiCount <= 300,               
+
+  type %in% c("tenement","blockOfFlats","apartmentBuilding") | is.na(type),
+  ownership %in% c("condominium","cooperative"),
+
+  hasParkingSpace %in% c("yes","no"),
+  hasBalcony %in% c("yes","no"),
+  hasElevator %in% c("yes","no"),
+  hasSecurity %in% c("yes","no"),
+  hasStorageRoom %in% c("yes","no"),
+
+  price > 0,
+  price / squareMeters >= 8000,
+  price / squareMeters <= 35000
+)
+out_hard <- confront(dane_imputed, rules_hard)
+summary(out_hard)
+
+rules_soft <- validator(
+
+  !(buildYear < 1945 & floorCount > 7) | is.na(floorCount),
+  !(floor >= 5 & buildYear >= 1995 & hasElevator == "no") | is.na(floor),
+  !(squareMeters < 35 & rooms >= 3),
+  !(squareMeters > 80 & rooms == 1)
+)
+out_soft <- confront(dane_imputed, rules_soft)
+summary(out_soft)
+```
 
