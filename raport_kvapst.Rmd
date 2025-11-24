@@ -88,6 +88,8 @@ densityplot(imp, ~ floor)
 xyplot(imp, floor ~ buildYear)
 summary(complete(imp, "long"))
 
+mcar_test(dane_imputed)
+miss_var_summary(dane_imputed)
 
 
 
