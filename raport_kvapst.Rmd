@@ -24,6 +24,8 @@ mcar_test(dane_gdansk)
 
 W celu określenia mechanizmu braków danych przeprowadzono test Little MCAR. Wynik testu był istotny statystycznie (χ² = 2374.25, df = 569, p < 0.001), co pozwala odrzucić hipotezę o całkowicie losowym charakterze braków (MCAR). Oznacza to, że zmienne w zbiorze zawierają braki zależne od innych informacji (MAR) lub od wartości samej zmiennej (MNAR). Braki danych nie mają więc charakteru losowego i wymagają zastosowania zaawansowanej metody imputacji, takiej jak MICE.
 
+ 2.1 Braki danych 
+ 
 ```{r}
 miss_var_summary(dane_gdansk)
 gg_miss_var(dane_gdansk)
@@ -31,7 +33,10 @@ vis_miss(dane_gdansk)
 gg_miss_upset(dane_gdansk)
 missing_pattern(dane_gdansk)
 aggr_plot <- VIM::aggr(dane_gdansk) 
-
+gg_miss_fct(x=dane_gdansk,fct=collegeDistance)
+gg_miss_fct(x=dane_gdansk,fct=type)
+gg_miss_fct(x=dane_gdansk,fct=floor)
+gg_miss_fct(x=dane_gdansk,fct=hasElevator)
 ```
  
  W zbiorze danych przeprowadzono analizę braków, której celem było określenie ich zakresu, struktury oraz mechanizmu powstawania. Łączny odsetek braków wyniósł około 3%, jednak nie były one równomiernie rozłożone między zmiennymi. Najwięcej braków odnotowano w zmiennych type, floor oraz buildYear, co wskazuje, że dotyczą one głównie informacji opisujących cechy budynku. Pozostałe zmienne charakteryzowały się znikomym poziomem braków.
@@ -116,9 +121,10 @@ str(dane_imputed)
 rozdzial 2 sprawdzanie spojnosci danych 
 
 ```{r}
+sum(duplicated(dane_imputed))
+
 install.packages("validate")
 library(validate)
-
 rules_hard <- validator(
 
   squareMeters > 0,
