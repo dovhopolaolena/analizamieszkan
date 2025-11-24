@@ -36,3 +36,12 @@ dane_gdansk$hasSecurity     <- ifelse(dane_gdansk$hasSecurity == "yes", 1, 0)
 dane_gdansk$hasStorageRoom  <- ifelse(dane_gdansk$hasStorageRoom == "yes", 1, 0)
 ```
 
+```{r}
+install.packages("ggmice")
+library(ggmice)
+
+plot_corr(dane_gdansk)
+ggmice(imp, aes(dane_gdansk$type, dane_gdansk$buildYear)) + 
+  geom_miss_point()
+```
+
