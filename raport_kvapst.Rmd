@@ -1,11 +1,14 @@
 ```{r}
 install.packages("naniar")
 install.packages("finalfit")
+install.packages("validate")
+library(validate)
 library(readr)
 library(dplyr)
 library(naniar)
 library(finalfit)
 library(mice)
+library(ggplot2)
 ```
 
 ```{r}
@@ -82,7 +85,7 @@ imp <- mice(
 )
 
 dane_imputed <- complete(imp, 1)
-library(ggplot2)
+
 ggplot()+
   geom_miss_point(data = dane_gdansk, aes(x = floor, y = buildYear , color = "red"))
 plot(imp)
@@ -96,9 +99,6 @@ summary(complete(imp, "long"))
 
 mcar_test(dane_imputed)
 miss_var_summary(dane_imputed)
-
-library(readr)
-write_csv(dane_imputed, "dane_gdansk_imputed.csv")
 
 ```
 W zbiorze danych imputacją objęto wyłącznie zmienne z udziałem braków przekraczającym 3%, z wyłączeniem zmiennej type, której zgodnie z zaleceniem prowadzącego nie imputowano. Ostatecznie uzupełniono cztery zmienne: floor, buildYear, hasElevator oraz collegeDistance.
@@ -115,10 +115,6 @@ Analiza podsumowania danych po imputacji potwierdza, że proces wielokrotnej imp
 
 Zakresy wartości są racjonalne — nie pojawiły się wartości nierealne (np. ujemne odległości, nierealne lata budowy czy zerowe piętra). Cena nieruchomości również mieści się w realnym zakresie obserwowanym w danych wejściowych. Wszystko to potwierdza, że imputacja została wykonana poprawnie, a dane mogą być bezpiecznie wykorzystane w dalszej analizie ekonometrycznej i modelowaniu.
 
-```{r}
-
-```
-
 rozdzial 2 sprawdzanie spojnosci danych 
 srtrip plot dla danych po imputacji 
 ```{r}
@@ -126,8 +122,6 @@ sum(duplicated(dane_imputed))
 dane_clean<-distinct(dane_imputed)
 sum(duplicated(dane_clean))
 
-install.packages("validate")
-library(validate)
 rules_hard <- validator(
 
   squareMeters > 0,
@@ -212,13 +206,6 @@ miss_var_summary(dane_clean)
 
 
 ```
-
 dane jakosciowe 
-
-
 Rozdzial X : analiza opisowa i wizualizacja zmiennych jakościowych
-
-
-
-```{r}
-da
+Wykresy i statystyki opisowe do świąt 
