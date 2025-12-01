@@ -82,6 +82,7 @@ imp <- mice(
 )
 
 dane_imputed <- complete(imp, 1)
+library(ggplot2)
 ggplot()+
   geom_miss_point(data = dane_gdansk, aes(x = floor, y = buildYear , color = "red"))
 plot(imp)
@@ -179,8 +180,16 @@ rules_hard <- validator(
   price / squareMeters >= 8000,
   price / squareMeters <= 35000
 )
-out_hard <- confront(dane_imputed, rules_hard)
+out_hard <- confront(dane_clean, rules_hard)
 summary(out_hard)
+
+dane_clean %>%
+  mutate(
+    floor = ifelse(floor > floorCount, NA, floor)
+  )
+out <- confront(dane_clean, rules_hard)
+summary(out)
+
 
 rules_soft <- validator(
 
@@ -189,18 +198,27 @@ rules_soft <- validator(
   !(squareMeters < 35 & rooms >= 3),
   !(squareMeters > 80 & rooms == 1)
 )
-out_soft <- confront(dane_imputed, rules_soft)
+out_soft <- confront(dane_clean, rules_soft)
 summary(out_soft)
 ```
 	
 ```{r}
 # bledy (wstawiamy NA), duplicaty, braki (byo 21 ) 
 # radzenie sobie z bledami
+# dane gotowe do analizy
 
-
-
+mcar_test(dane_clean)
+miss_var_summary(dane_clean)
 
 
 ```
 
 dane jakosciowe 
+
+
+Rozdzial X : analiza opisowa i wizualizacja zmiennych jakościowych
+
+
+
+```{r}
+da
