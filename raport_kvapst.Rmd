@@ -1,0 +1,214 @@
+```{r}
+install.packages("naniar")
+install.packages("finalfit")
+install.packages("validate")
+library(validate)
+library(readr)
+library(dplyr)
+library(naniar)
+library(finalfit)
+library(mice)
+library(ggplot2)
+```
+
+```{r}
+mieszkania<-read_csv("apartments_pl_2024_06.csv")
+dane<-filter(mieszkania, city=="gdansk")
+dane_gdansk <- dane %>%
+  select(-c(id,longitude,latitude, condition, buildingMaterial,city))
+```
+floor, rokbudowy, czy jest winda, odleglosc od uni. Type i reszta zostaje z brakami danych, bo nie oplaca sie 
+
+ mice dla zmiennych numerycznych buduje model liniowy, dla kategorzycznych logitowy 
+ 
+```{r}
+mcar_test(dane_gdansk)
+```
+
+W celu określenia mechanizmu braków danych przeprowadzono test Little MCAR. Wynik testu był istotny statystycznie (χ² = 2374.25, df = 569, p < 0.001), co pozwala odrzucić hipotezę o całkowicie losowym charakterze braków (MCAR). Oznacza to, że zmienne w zbiorze zawierają braki zależne od innych informacji (MAR) lub od wartości samej zmiennej (MNAR). Braki danych nie mają więc charakteru losowego i wymagają zastosowania zaawansowanej metody imputacji, takiej jak MICE.
+
+ 2.1 Braki danych 
+ 
+```{r}
+miss_var_summary(dane_gdansk)
+gg_miss_var(dane_gdansk)
+vis_miss(dane_gdansk)
+gg_miss_upset(dane_gdansk)
+missing_pattern(dane_gdansk)
+aggr_plot <- VIM::aggr(dane_gdansk) 
+gg_miss_fct(x=dane_gdansk,fct=collegeDistance)
+gg_miss_fct(x=dane_gdansk,fct=type)
+gg_miss_fct(x=dane_gdansk,fct=floor)
+gg_miss_fct(x=dane_gdansk,fct=hasElevator)
+```
+ 
+ W zbiorze danych przeprowadzono analizę braków, której celem było określenie ich zakresu, struktury oraz mechanizmu powstawania. Łączny odsetek braków wyniósł około 3%, jednak nie były one równomiernie rozłożone między zmiennymi. Najwięcej braków odnotowano w zmiennych type, floor oraz buildYear, co wskazuje, że dotyczą one głównie informacji opisujących cechy budynku. Pozostałe zmienne charakteryzowały się znikomym poziomem braków.
+
+Wizualizacje braków, w tym mapy ciepła oraz wykresy typu vis_miss i UpSet Plot, wykazały istnienie wyraźnych wzorców współwystępowania brakujących wartości, co sugeruje, że nie mają one charakteru przypadkowego. 
+
+Ze względu na nielosowy charakter braków oraz ich koncentrację w wybranych zmiennych, do uzupełnienia danych zastosowano metodę imputacji wielokrotnej MICE. Metoda ta pozwala odtworzyć brakujące wartości w sposób zgodny z zależnościami występującymi w zbiorze, ograniczając ryzyko zniekształcenia wyników dalszej analizy. Zmienne o minimalnej liczbie braków pozostawiono bez imputacji, gdyż ich wpływ na modele jest pomijalny. Dzięki przeprowadzonej imputacji uzyskano kompletny i spójny zbiór danych, odpowiedni do kolejnych etapów modelowania.
+
+ ggmice
+
+```{r}
+dane_gdansk$hasElevator <- as.factor(dane_gdansk$hasElevator)
+dane_gdansk$type <- as.factor(dane_gdansk$type)
+
+methods <- make.method(dane_gdansk)
+methods[] <- ""
+
+methods["floor"]           <- "pmm"    
+methods["buildYear"]       <- "pmm"
+methods["hasElevator"]     <- "logreg"
+methods["collegeDistance"] <- "pmm"
+   
+pred <- make.predictorMatrix(dane_gdansk)
+pred[,] <- 0   
+
+pred_floor <- c("floorCount", "rooms", "squareMeters",
+                "buildYear", "hasElevator",
+                "centreDistance", "poiCount")
+
+pred["floor", pred_floor] <- 1
+
+pred[, "type"] <- 0
+pred["type", ] <- 0
+
+set.seed(123)
+imp <- mice(
+  dane_gdansk,
+  method = methods,
+  predictorMatrix = pred,
+  m = 5,
+  maxit = 10,
+  ridge = 1e-5
+)
+
+dane_imputed <- complete(imp, 1)
+
+ggplot()+
+  geom_miss_point(data = dane_gdansk, aes(x = floor, y = buildYear , color = "red"))
+plot(imp)
+
+
+
+hist(dane_gdansk$floor)
+densityplot(imp, ~ floor)
+xyplot(imp, floor ~ buildYear)
+summary(complete(imp, "long"))
+
+mcar_test(dane_imputed)
+miss_var_summary(dane_imputed)
+
+library(readr)
+write_csv(dane_imputed, "dane_gdansk_imputed.csv")
+
+```
+W zbiorze danych imputacją objęto wyłącznie zmienne z udziałem braków przekraczającym 3%, z wyłączeniem zmiennej type, której zgodnie z zaleceniem prowadzącego nie imputowano. Ostatecznie uzupełniono cztery zmienne: floor, buildYear, hasElevator oraz collegeDistance.
+
+Typy zmiennych zostały odpowiednio przygotowane: hasElevator oraz type zadeklarowano jako zmienne kategoryczne (factor), natomiast floor pozostawiono jako zmienną liczbową. Jest to istotne, ponieważ pakiet mice dobiera metodę imputacji na podstawie typu danych.
+
+Do imputacji zmiennych liczbowych (floor, buildYear, collegeDistance) zastosowano metodę PMM (Predictive Mean Matching), która dobiera brakujące wartości z rzeczywistych obserwacji o podobnych przewidywanych wartościach, dzięki czemu zachowuje naturalny rozkład danych. Binarną zmienną hasElevator imputowano metodą regresji logistycznej (logreg), co gwarantuje pozostanie wartości w zakresie 0/1.
+
+W celu zwiększenia stabilności imputacji ograniczono liczbę predyktorów używanych do przewidywania zmiennej floor jedynie do zmiennych merytorycznie powiązanych (m.in. floorCount, rooms, squareMeters, buildYear, centreDistance, poiCount). Dodatkowo zmienną type wyłączono z macierzy predyktorów, aby nie wpływała ona na modele imputacyjne ze względu na własne braki. Zastosowano również niewielką regularyzację (ridge = 1e−5), co zapobiegało problemom numerycznym.
+
+Imputację przeprowadzono funkcją mice() z pięcioma iteracjami kompletnego zestawu danych (m = 5). Kompletny zbiór uzyskano poleceniem complete(imp, 1). Zastosowane podejście pozwoliło uzyskać realistyczne i statystycznie poprawne uzupełnienie braków danych, zgodnie z wytycznymi prowadzącego
+
+Analiza podsumowania danych po imputacji potwierdza, że proces wielokrotnej imputacji (MICE) przebiegł prawidłowo. Wszystkie brakujące wartości zostały uzupełnione, co widać po braku obserwacji oznaczonych jako NA. Wartości minimalne, maksymalne oraz kwartylowe w imputowanych zmiennych pozostają zgodne z charakterystyką danych pierwotnych, co wskazuje, że imputacja nie zniekształciła ani rozkładu, ani zmienności zmiennych.
+
+Zakresy wartości są racjonalne — nie pojawiły się wartości nierealne (np. ujemne odległości, nierealne lata budowy czy zerowe piętra). Cena nieruchomości również mieści się w realnym zakresie obserwowanym w danych wejściowych. Wszystko to potwierdza, że imputacja została wykonana poprawnie, a dane mogą być bezpiecznie wykorzystane w dalszej analizie ekonometrycznej i modelowaniu.
+
+rozdzial 2 sprawdzanie spojnosci danych 
+srtrip plot dla danych po imputacji 
+```{r}
+sum(duplicated(dane_imputed))
+dane_clean<-distinct(dane_imputed)
+sum(duplicated(dane_clean))
+
+rules_hard <- validator(
+
+  squareMeters > 0,
+  squareMeters <= 250,
+
+  rooms >= 1,
+  rooms <= 8,         
+
+  squareMeters >= rooms * 8,      
+  squareMeters <= rooms * 40,     
+
+  floor >= 0 | is.na(floor),     
+  floorCount >= 1 | is.na(floorCount),
+  floor <= floorCount | is.na(floor) | is.na(floorCount),
+
+  buildYear >= 1850,
+  buildYear <= 2025,
+
+  centreDistance >= 0,
+  schoolDistance >= 0 | is.na(schoolDistance),
+  clinicDistance >= 0 | is.na(clinicDistance),
+  postOfficeDistance >= 0 | is.na(postOfficeDistance),
+  kindergartenDistance >= 0 | is.na(kindergartenDistance),
+  restaurantDistance >= 0 | is.na(restaurantDistance),
+  collegeDistance >= 0,
+  pharmacyDistance >= 0 | is.na(pharmacyDistance),
+
+  centreDistance <= 20,
+  schoolDistance <= 10 | is.na(schoolDistance),
+  clinicDistance <= 10 | is.na(clinicDistance),
+  postOfficeDistance <= 10 | is.na(postOfficeDistance),
+  kindergartenDistance <= 10 | is.na(kindergartenDistance),
+  restaurantDistance <= 10 | is.na(restaurantDistance),
+  collegeDistance <= 15,
+  pharmacyDistance <= 10 | is.na(pharmacyDistance),
+
+  poiCount >= 0,
+  poiCount <= 300,               
+
+  type %in% c("tenement","blockOfFlats","apartmentBuilding") | is.na(type),
+  ownership %in% c("condominium","cooperative"),
+
+  hasParkingSpace %in% c("yes","no"),
+  hasBalcony %in% c("yes","no"),
+  hasElevator %in% c("yes","no"),
+  hasSecurity %in% c("yes","no"),
+  hasStorageRoom %in% c("yes","no"),
+
+  price > 0,
+  price / squareMeters >= 8000,
+  price / squareMeters <= 35000
+)
+out_hard <- confront(dane_clean, rules_hard)
+summary(out_hard)
+
+dane_clean %>%
+  mutate(
+    floor = ifelse(floor > floorCount, NA, floor)
+  )
+out <- confront(dane_clean, rules_hard)
+summary(out)
+
+
+rules_soft <- validator(
+
+  !(buildYear < 1945 & floorCount > 7) | is.na(floorCount),
+  !(floor >= 5 & buildYear >= 1995 & hasElevator == "no") | is.na(floor),
+  !(squareMeters < 35 & rooms >= 3),
+  !(squareMeters > 80 & rooms == 1)
+)
+out_soft <- confront(dane_clean, rules_soft)
+summary(out_soft)
+```
+	
+```{r}
+# bledy (wstawiamy NA), duplicaty, braki (byo 21 ) 
+# radzenie sobie z bledami
+# dane gotowe do analizy
+
+mcar_test(dane_clean)
+miss_var_summary(dane_clean)
+
+
+```
+dane jakosciowe 
+Rozdzial X : analiza opisowa i wizualizacja zmiennych jakościowych
+Wykresy i statystyki opisowe do świąt 
