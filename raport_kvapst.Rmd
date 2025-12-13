@@ -100,9 +100,6 @@ summary(complete(imp, "long"))
 mcar_test(dane_imputed)
 miss_var_summary(dane_imputed)
 
-library(readr)
-write_csv(dane_imputed, "dane_gdansk_imputed.csv")
-
 ```
 W zbiorze danych imputacją objęto wyłącznie zmienne z udziałem braków przekraczającym 3%, z wyłączeniem zmiennej type, której zgodnie z zaleceniem prowadzącego nie imputowano. Ostatecznie uzupełniono cztery zmienne: floor, buildYear, hasElevator oraz collegeDistance.
 
