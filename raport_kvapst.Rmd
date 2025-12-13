@@ -203,6 +203,7 @@ summary(out_soft)
 
 mcar_test(dane_clean)
 miss_var_summary(dane_clean)
+write_csv(dane_clean,"dane_gdansk_imputed_clean.csv")
 
 
 ```
