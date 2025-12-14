@@ -16,6 +16,7 @@ mieszkania<-read_csv("apartments_pl_2024_06.csv")
 dane<-filter(mieszkania, city=="gdansk")
 dane_gdansk <- dane %>%
   select(-c(id,longitude,latitude, condition, buildingMaterial,city))
+str(dane_gdansk)
 ```
 floor, rokbudowy, czy jest winda, odleglosc od uni. Type i reszta zostaje z brakami danych, bo nie oplaca sie 
 
@@ -111,7 +112,6 @@ W celu zwiększenia stabilności imputacji ograniczono liczbę predyktorów uży
 
 Imputację przeprowadzono funkcją mice() z pięcioma iteracjami kompletnego zestawu danych (m = 5). Kompletny zbiór uzyskano poleceniem complete(imp, 1). Zastosowane podejście pozwoliło uzyskać realistyczne i statystycznie poprawne uzupełnienie braków danych, zgodnie z wytycznymi prowadzącego
 
-Analiza podsumowania danych po imputacji potwierdza, że proces wielokrotnej imputacji (MICE) przebiegł prawidłowo. Wszystkie brakujące wartości zostały uzupełnione, co widać po braku obserwacji oznaczonych jako NA. Wartości minimalne, maksymalne oraz kwartylowe w imputowanych zmiennych pozostają zgodne z charakterystyką danych pierwotnych, co wskazuje, że imputacja nie zniekształciła ani rozkładu, ani zmienności zmiennych.
 
 Zakresy wartości są racjonalne — nie pojawiły się wartości nierealne (np. ujemne odległości, nierealne lata budowy czy zerowe piętra). Cena nieruchomości również mieści się w realnym zakresie obserwowanym w danych wejściowych. Wszystko to potwierdza, że imputacja została wykonana poprawnie, a dane mogą być bezpiecznie wykorzystane w dalszej analizie ekonometrycznej i modelowaniu.
 
@@ -203,7 +203,8 @@ summary(out_soft)
 
 mcar_test(dane_clean)
 miss_var_summary(dane_clean)
-write_csv(dane_clean,"dane_gdansk_imputed_clean.csv")
+str(dane_clean)
+
 
 
 ```
