@@ -1,7 +1,4 @@
 ```{r}
-install.packages("naniar")
-install.packages("finalfit")
-install.packages("validate")
 library(validate)
 library(readr)
 library(dplyr)
@@ -316,41 +313,47 @@ ggplot(df, aes(x = hasBalcony, y = price)) +
 ```
 
 ```{r summarytools_print, results='asis', echo=FALSE}
-# statystyki opisowe  dla zmiennych jakosciowych
 print(dfSummary(dane_clean, style = "grid"), method = "render")
 descr(dane_clean %>% select(where(is.numeric)))   # tylko numeryczne
 freq(dane_clean %>% select(where(is.factor))) 
 
-
-tbl_overall <-
-  dane_clean %>%
-  tbl_summary(
-    statistic = list(
-      all_continuous() ~ "{mean} ({sd})",
-      all_categorical() ~ "{n} ({p}%)"
-    ),
-    digits = all_continuous() ~ 2,
-    missing = "ifany"
-  ) %>%
-  add_n() %>%
-  bold_labels()
-
-tbl_overall
-
-tbl_overall_med <-
-  dane_clean %>%
-  tbl_summary(
-    statistic = list(
-      all_continuous() ~ "{median} ({p25}, {p75})",
-      all_categorical() ~ "{n} ({p}%)"
-    ),
-    digits = all_continuous() ~ 2,
-    missing = "ifany"
-  ) %>%
-  add_n() %>%
-  bold_labels()
-
-tbl_overall_med
-
 # statystyki opisowe  dla zmiennych ilosciowych
+
+tab1 <- dane_clean %>%
+  select(-price) %>%  # jeśli price jest zmienną docelową, często daje się osobno; ale możesz zostawić
+  tbl_summary(
+    statistic = list(
+      all_continuous() ~ "{median} ({p25}–{p75})",
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    missing = "ifany"
+  ) %>%
+  add_n() %>%
+  modify_header(label = "**Zmienna**") %>%
+  bold_labels()
+
+tab1
+
+num_vars <- dane_clean %>%
+  select(
+    price,
+    squareMeters,
+    rooms,
+    floor,
+    buildYear,
+    centreDistance,
+    schoolDistance,
+    clinicDistance,
+    restaurantDistance
+  )
+
+cor_matrix <- cor(
+  num_vars,
+  use = "pairwise.complete.obs",
+  method = "spearman"
+)
+
+round(cor_matrix, 2)
+
+# statystyki opisowe  dla zmiennych jakosciowych
 ```
