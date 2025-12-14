@@ -1,7 +1,4 @@
 ```{r}
-install.packages("naniar")
-install.packages("finalfit")
-install.packages("validate")
 library(validate)
 library(readr)
 library(dplyr)
@@ -258,7 +255,7 @@ ggplot(dane_clean, aes(x = squareMeters, y = price)) +
   ) +
   theme_minimal()
 # c) cena za metrz kwadratowy a odległość od ....
-
+library(dplyr)
 df <- dane_clean %>%
   mutate(price_m2 = price / squareMeters)
 
@@ -294,14 +291,6 @@ ggplot(df, aes(x = type)) +
   ) +
   theme_minimal() 
 # b) porównanie do ceny 
-ggplot(df, aes(x = type)) +
-  geom_bar(fill = "#6baed6") +
-  labs(
-    title = "Liczba ofert według typu mieszkania",
-    x = "Typ",
-    y = "Liczba ofert"
-  ) +
-  theme_minimal()
 
 # d) balkon a cena 
 ggplot(df, aes(x = hasBalcony, y = price)) +
@@ -316,41 +305,24 @@ ggplot(df, aes(x = hasBalcony, y = price)) +
 ```
 
 ```{r summarytools_print, results='asis', echo=FALSE}
-# statystyki opisowe  dla zmiennych jakosciowych
 print(dfSummary(dane_clean, style = "grid"), method = "render")
 descr(dane_clean %>% select(where(is.numeric)))   # tylko numeryczne
 freq(dane_clean %>% select(where(is.factor))) 
 
-
-tbl_overall <-
-  dane_clean %>%
-  tbl_summary(
-    statistic = list(
-      all_continuous() ~ "{mean} ({sd})",
-      all_categorical() ~ "{n} ({p}%)"
-    ),
-    digits = all_continuous() ~ 2,
-    missing = "ifany"
-  ) %>%
-  add_n() %>%
-  bold_labels()
-
-tbl_overall
-
-tbl_overall_med <-
-  dane_clean %>%
-  tbl_summary(
-    statistic = list(
-      all_continuous() ~ "{median} ({p25}, {p75})",
-      all_categorical() ~ "{n} ({p}%)"
-    ),
-    digits = all_continuous() ~ 2,
-    missing = "ifany"
-  ) %>%
-  add_n() %>%
-  bold_labels()
-
-tbl_overall_med
-
 # statystyki opisowe  dla zmiennych ilosciowych
+summary(dane_clean %>% select(where(is.numeric)))
+summary(dane_clean %>% select(where(is.factor)))
+
+num_vars <- dane_clean %>%
+  select(where(is.numeric))
+cor_matrix <- cor(
+  num_vars,
+  use = "pairwise.complete.obs",
+  method = "pearson"
+)
+
+round(cor_matrix, 2)
+corrplot(cor_matrix, method = "color", type = "upper")
+
+# statystyki opisowe  dla zmiennych jakosciowych
 ```
