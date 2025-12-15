@@ -324,5 +324,27 @@ cor_matrix <- cor(
 round(cor_matrix, 2)
 corrplot(cor_matrix, method = "color", type = "upper")
 
+num_vars <- dane_clean %>%
+  select(
+    price,
+    squareMeters,
+    rooms,
+    floor,
+    buildYear,
+    centreDistance,
+    schoolDistance,
+    clinicDistance,
+    restaurantDistance
+  )
+
+cor_matrix <- cor(
+  num_vars,
+  use = "pairwise.complete.obs",
+  method = "spearman"
+)
+
+round(cor_matrix, 2)
+
+
 # statystyki opisowe  dla zmiennych jakosciowych
 ```
