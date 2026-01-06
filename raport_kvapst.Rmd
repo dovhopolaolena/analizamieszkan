@@ -34,7 +34,7 @@ dane_gdansk <- dane %>%
 str(dane_gdansk)
 ```
 
-floor, rokbudowy, czy jest winda, odleglosc od uni. Type i reszta zostaje z brakami danych, bo nie oplaca sie
+floor, rokbudowy, czy jest winda, odleglosc od uni Z brakami danych do uzupelnienia. Type i reszta zostaje z brakami danych, bo nie oplaca sie -> jak to uzasadnić?
 
 mice dla zmiennych numerycznych buduje model liniowy, dla kategorzycznych logitowy
 
@@ -116,7 +116,7 @@ summary(complete(imp, "long"))
 
 mcar_test(dane_imputed)
 miss_var_summary(dane_imputed)
-
+# dDIDAĆ STRIP LOT, PRZYNAIMNIEJ SPRAWDZIC O CO CHODZI 
 ```
 
 W zbiorze danych imputacją objęto wyłącznie zmienne z udziałem braków przekraczającym 3%, z wyłączeniem zmiennej type, której zgodnie z zaleceniem prowadzącego nie imputowano. Ostatecznie uzupełniono cztery zmienne: floor, buildYear, hasElevator oraz collegeDistance.
@@ -216,7 +216,7 @@ summary(out_soft)
 ```
 
 ```{r}
-# bledy (wstawiamy NA), duplicaty, braki (byo 21 ) 
+# bledy (wstawiamy NA), duplicaty, braki (byo 21 ) -> NIE PAMIETAM O CO CHODZILO, SPRAWDZIC.CHOZILO O DUPLICATY
 # radzenie sobie z bledami
 # dane gotowe do analizy
 
@@ -281,7 +281,7 @@ ggplot(dane_clean, aes(x = factor(rooms), y = price)) +
   theme_minimal()
 
 # wykresy zmiennych jakościowych 
-# a) typ mieszkania w porównaniu do ilości ? moze zamienic na cos ineego 
+# a) typ mieszkania w porównaniu do ilości ? moze zamienic na cos ineego -> BOO A DUŻO BRAKÓW BYŁO
 ggplot(df, aes(x = type)) +
   geom_bar(fill = "#6baed6") +
   labs(
@@ -305,7 +305,10 @@ ggplot(df, aes(x = hasBalcony, y = price)) +
 ```
 
 ```{r summarytools_print, results='asis', echo=FALSE}
-print(dfSummary(dane_clean, style = "grid"), method = "render")
+
+
+print(dfSummary(dane_clean, style = "grid"), method = "render", theme = "light")
+
 descr(dane_clean %>% select(where(is.numeric)))   # tylko numeryczne
 freq(dane_clean %>% select(where(is.factor))) 
 
