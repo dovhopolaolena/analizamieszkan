@@ -1,7 +1,4 @@
 ```{r}
-install.packages("naniar")
-install.packages("finalfit")
-install.packages("validate")
 library(validate)
 library(readr)
 library(dplyr)
@@ -9,6 +6,24 @@ library(naniar)
 library(finalfit)
 library(mice)
 library(ggplot2)
+options(qwraps2_markup = "markdown")
+library(qwraps2)
+library(arsenal)
+library(e1071)
+library(haven)
+library(papeR)
+library(tidyverse)
+library(ggplot2)
+library(kableExtra)
+library(summarytools)
+library(gtsummary)
+library(classInt)
+library(pastecs)
+library(desctable)
+library(frequency)
+library(corrplot)
+library(ggpubr)
+
 ```
 
 ```{r}
@@ -16,19 +31,21 @@ mieszkania<-read_csv("apartments_pl_2024_06.csv")
 dane<-filter(mieszkania, city=="gdansk")
 dane_gdansk <- dane %>%
   select(-c(id,longitude,latitude, condition, buildingMaterial,city))
+str(dane_gdansk)
 ```
-floor, rokbudowy, czy jest winda, odleglosc od uni. Type i reszta zostaje z brakami danych, bo nie oplaca sie 
 
- mice dla zmiennych numerycznych buduje model liniowy, dla kategorzycznych logitowy 
- 
+floor, rokbudowy, czy jest winda, odleglosc od uni Z brakami danych do uzupelnienia. Type i reszta zostaje z brakami danych, bo nie oplaca sie -> jak to uzasadnić?
+
+mice dla zmiennych numerycznych buduje model liniowy, dla kategorzycznych logitowy
+
 ```{r}
 mcar_test(dane_gdansk)
 ```
 
-W celu określenia mechanizmu braków danych przeprowadzono test Little MCAR. Wynik testu był istotny statystycznie (χ² = 2374.25, df = 569, p < 0.001), co pozwala odrzucić hipotezę o całkowicie losowym charakterze braków (MCAR). Oznacza to, że zmienne w zbiorze zawierają braki zależne od innych informacji (MAR) lub od wartości samej zmiennej (MNAR). Braki danych nie mają więc charakteru losowego i wymagają zastosowania zaawansowanej metody imputacji, takiej jak MICE.
+W celu określenia mechanizmu braków danych przeprowadzono test Little MCAR. Wynik testu był istotny statystycznie (χ² = 2374.25, df = 569, p \< 0.001), co pozwala odrzucić hipotezę o całkowicie losowym charakterze braków (MCAR). Oznacza to, że zmienne w zbiorze zawierają braki zależne od innych informacji (MAR) lub od wartości samej zmiennej (MNAR). Braki danych nie mają więc charakteru losowego i wymagają zastosowania zaawansowanej metody imputacji, takiej jak MICE.
 
- 2.1 Braki danych 
- 
+2.1 Braki danych
+
 ```{r}
 miss_var_summary(dane_gdansk)
 gg_miss_var(dane_gdansk)
@@ -41,14 +58,14 @@ gg_miss_fct(x=dane_gdansk,fct=type)
 gg_miss_fct(x=dane_gdansk,fct=floor)
 gg_miss_fct(x=dane_gdansk,fct=hasElevator)
 ```
- 
- W zbiorze danych przeprowadzono analizę braków, której celem było określenie ich zakresu, struktury oraz mechanizmu powstawania. Łączny odsetek braków wyniósł około 3%, jednak nie były one równomiernie rozłożone między zmiennymi. Najwięcej braków odnotowano w zmiennych type, floor oraz buildYear, co wskazuje, że dotyczą one głównie informacji opisujących cechy budynku. Pozostałe zmienne charakteryzowały się znikomym poziomem braków.
 
-Wizualizacje braków, w tym mapy ciepła oraz wykresy typu vis_miss i UpSet Plot, wykazały istnienie wyraźnych wzorców współwystępowania brakujących wartości, co sugeruje, że nie mają one charakteru przypadkowego. 
+W zbiorze danych przeprowadzono analizę braków, której celem było określenie ich zakresu, struktury oraz mechanizmu powstawania. Łączny odsetek braków wyniósł około 3%, jednak nie były one równomiernie rozłożone między zmiennymi. Najwięcej braków odnotowano w zmiennych type, floor oraz buildYear, co wskazuje, że dotyczą one głównie informacji opisujących cechy budynku. Pozostałe zmienne charakteryzowały się znikomym poziomem braków.
+
+Wizualizacje braków, w tym mapy ciepła oraz wykresy typu vis_miss i UpSet Plot, wykazały istnienie wyraźnych wzorców współwystępowania brakujących wartości, co sugeruje, że nie mają one charakteru przypadkowego.
 
 Ze względu na nielosowy charakter braków oraz ich koncentrację w wybranych zmiennych, do uzupełnienia danych zastosowano metodę imputacji wielokrotnej MICE. Metoda ta pozwala odtworzyć brakujące wartości w sposób zgodny z zależnościami występującymi w zbiorze, ograniczając ryzyko zniekształcenia wyników dalszej analizy. Zmienne o minimalnej liczbie braków pozostawiono bez imputacji, gdyż ich wpływ na modele jest pomijalny. Dzięki przeprowadzonej imputacji uzyskano kompletny i spójny zbiór danych, odpowiedni do kolejnych etapów modelowania.
 
- ggmice
+ggmice
 
 ```{r}
 dane_gdansk$hasElevator <- as.factor(dane_gdansk$hasElevator)
@@ -99,8 +116,9 @@ summary(complete(imp, "long"))
 
 mcar_test(dane_imputed)
 miss_var_summary(dane_imputed)
-
+# dDIDAĆ STRIP LOT, PRZYNAIMNIEJ SPRAWDZIC O CO CHODZI 
 ```
+
 W zbiorze danych imputacją objęto wyłącznie zmienne z udziałem braków przekraczającym 3%, z wyłączeniem zmiennej type, której zgodnie z zaleceniem prowadzącego nie imputowano. Ostatecznie uzupełniono cztery zmienne: floor, buildYear, hasElevator oraz collegeDistance.
 
 Typy zmiennych zostały odpowiednio przygotowane: hasElevator oraz type zadeklarowano jako zmienne kategoryczne (factor), natomiast floor pozostawiono jako zmienną liczbową. Jest to istotne, ponieważ pakiet mice dobiera metodę imputacji na podstawie typu danych.
@@ -111,12 +129,10 @@ W celu zwiększenia stabilności imputacji ograniczono liczbę predyktorów uży
 
 Imputację przeprowadzono funkcją mice() z pięcioma iteracjami kompletnego zestawu danych (m = 5). Kompletny zbiór uzyskano poleceniem complete(imp, 1). Zastosowane podejście pozwoliło uzyskać realistyczne i statystycznie poprawne uzupełnienie braków danych, zgodnie z wytycznymi prowadzącego
 
-Analiza podsumowania danych po imputacji potwierdza, że proces wielokrotnej imputacji (MICE) przebiegł prawidłowo. Wszystkie brakujące wartości zostały uzupełnione, co widać po braku obserwacji oznaczonych jako NA. Wartości minimalne, maksymalne oraz kwartylowe w imputowanych zmiennych pozostają zgodne z charakterystyką danych pierwotnych, co wskazuje, że imputacja nie zniekształciła ani rozkładu, ani zmienności zmiennych.
-
 Zakresy wartości są racjonalne — nie pojawiły się wartości nierealne (np. ujemne odległości, nierealne lata budowy czy zerowe piętra). Cena nieruchomości również mieści się w realnym zakresie obserwowanym w danych wejściowych. Wszystko to potwierdza, że imputacja została wykonana poprawnie, a dane mogą być bezpiecznie wykorzystane w dalszej analizie ekonometrycznej i modelowaniu.
 
-rozdzial 2 sprawdzanie spojnosci danych 
-srtrip plot dla danych po imputacji 
+rozdzial 2 sprawdzanie spojnosci danych srtrip plot dla danych po imputacji
+
 ```{r}
 sum(duplicated(dane_imputed))
 dane_clean<-distinct(dane_imputed)
@@ -177,7 +193,7 @@ rules_hard <- validator(
 out_hard <- confront(dane_clean, rules_hard)
 summary(out_hard)
 
-dane_clean %>%
+dane_clean <- dane_clean %>%
   mutate(
     floor = ifelse(floor > floorCount, NA, floor)
   )
@@ -194,18 +210,144 @@ rules_soft <- validator(
 )
 out_soft <- confront(dane_clean, rules_soft)
 summary(out_soft)
+
+
+# Dla zmiennych, w których nie występowały braki danych, nie uwzględniano warunku is.na(). Dla pozostałych zmiennych braki danych pozostawiono i traktowano jako dopuszczalne
 ```
-	
+
 ```{r}
-# bledy (wstawiamy NA), duplicaty, braki (byo 21 ) 
+# bledy (wstawiamy NA), duplicaty, braki (byo 21 ) -> NIE PAMIETAM O CO CHODZILO, SPRAWDZIC.CHOZILO O DUPLICATY
 # radzenie sobie z bledami
 # dane gotowe do analizy
 
 mcar_test(dane_clean)
 miss_var_summary(dane_clean)
-
-
+str(dane_clean) 
+#zmianiamy reste zmiennych na factor, zeby potem mozna bylo wykorzystywac logit, trrzeba zapytac w ktoeym momencie to najlepije zrobic prze czy po imputacji
+dane_clean<- dane_clean%>%
+  mutate(across(where(is.character), as.factor)) 
 ```
-dane jakosciowe 
-Rozdzial X : analiza opisowa i wizualizacja zmiennych jakościowych
-Wykresy i statystyki opisowe do świąt 
+
+dane jakosciowe Rozdzial X : analiza opisowa i wizualizacja zmiennych jakościowych Wykresy i statystyki opisowe do świąt
+
+```{r}
+# Wykresy zmiennych ilościowych 
+# a) Rozkład cen mieszkań, czy trzeb pokazac takze w skali log?
+
+ggplot(dane_clean, aes(x = price)) +
+  geom_histogram(bins = 40, fill = "#4292c6", color = "white") +
+  scale_x_continuous(labels = scales::comma) +
+  labs(
+    title = "Rozkład cen mieszkań",
+    x = "Cena (PLN)",
+    y = "Liczba ofert"
+  ) +
+  theme_minimal()
+# b)cena a metraż
+ggplot(dane_clean, aes(x = squareMeters, y = price)) +
+  geom_point(alpha = 0.4, color = "#2b8cbe") +
+  geom_smooth(method = "lm", se = FALSE, color = "#d95f0e") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Zależność ceny od metrażu",
+    x = "Metraż (m²)",
+    y = "Cena (PLN)"
+  ) +
+  theme_minimal()
+# c) cena za metrz kwadratowy a odległość od ....
+library(dplyr)
+df <- dane_clean %>%
+  mutate(price_m2 = price / squareMeters)
+
+ggplot(df, aes(x = centreDistance, y = price_m2)) +
+  geom_point(alpha = 0.4, color = "#74a9cf") +
+  geom_smooth(method = "loess", color = "red") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Cena za m² a odległość od centrum",
+    x = "Odległość od centrum (km)",
+    y = "Cena za m² (PLN)"
+  ) +
+  theme_minimal()
+# d) liczba pokoi a cena
+ggplot(dane_clean, aes(x = factor(rooms), y = price)) +
+  geom_boxplot(fill = "#9ecae1") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Cena mieszkań a liczba pokoi",
+    x = "Liczba pokoi",
+    y = "Cena (PLN)"
+  ) +
+  theme_minimal()
+
+# wykresy zmiennych jakościowych 
+# a) typ mieszkania w porównaniu do ilości ? moze zamienic na cos ineego -> BOO A DUŻO BRAKÓW BYŁO
+ggplot(df, aes(x = type)) +
+  geom_bar(fill = "#6baed6") +
+  labs(
+    title = "Liczba ofert według typu mieszkania",
+    x = "Typ",
+    y = "Liczba ofert"
+  ) +
+  theme_minimal() 
+# b) porównanie do ceny 
+
+# d) balkon a cena 
+ggplot(df, aes(x = hasBalcony, y = price)) +
+  geom_boxplot(fill = "#a1d99b") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Wpływ balkonu na cenę mieszkania",
+    x = "Balkon",
+    y = "Cena (PLN)"
+  ) +
+  theme_minimal()
+```
+
+```{r summarytools_print, results='asis', echo=FALSE}
+
+
+print(dfSummary(dane_clean, style = "grid"), method = "render", theme = "light")
+
+descr(dane_clean %>% select(where(is.numeric)))   # tylko numeryczne
+freq(dane_clean %>% select(where(is.factor))) 
+
+# statystyki opisowe  dla zmiennych ilosciowych
+summary(dane_clean %>% select(where(is.numeric)))
+summary(dane_clean %>% select(where(is.factor)))
+
+num_vars <- dane_clean %>%
+  select(where(is.numeric))
+cor_matrix <- cor(
+  num_vars,
+  use = "pairwise.complete.obs",
+  method = "pearson"
+)
+
+round(cor_matrix, 2)
+corrplot(cor_matrix, method = "color", type = "upper")
+
+num_vars <- dane_clean %>%
+  select(
+    price,
+    squareMeters,
+    rooms,
+    floor,
+    buildYear,
+    centreDistance,
+    schoolDistance,
+    clinicDistance,
+    restaurantDistance
+  )
+
+cor_matrix <- cor(
+  num_vars,
+  use = "pairwise.complete.obs",
+  method = "spearman"
+)
+
+round(cor_matrix, 2)
+
+
+# statystyki opisowe  dla zmiennych jakosciowych
+```
