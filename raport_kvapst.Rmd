@@ -34,7 +34,11 @@ dane_gdansk <- dane %>%
 str(dane_gdansk)
 ```
 
-floor, rokbudowy, czy jest winda, odleglosc od uni Z brakami danych do uzupelnienia. Type i reszta zostaje z brakami danych, bo nie oplaca sie -> jak to uzasadnić?
+#### **Hipoteza główna (H):**
+
+Apartamenty o większym metrażu osiągają wyższe ceny całkowite, ale mieszkania o mniejszym metrażu mają wyższe ceny za metr kwadratowy.
+
+floor, rokbudowy, czy jest winda, odleglosc od uni Z brakami danych do uzupelnienia. Type i reszta zostaje z brakami danych, bo nie oplaca sie -\> jak to uzasadnić?
 
 mice dla zmiennych numerycznych buduje model liniowy, dla kategorzycznych logitowy
 
