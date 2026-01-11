@@ -29,12 +29,18 @@ library(ggpubr)
 ```{r}
 mieszkania<-read_csv("apartments_pl_2024_06.csv")
 dane<-filter(mieszkania, city=="gdansk")
+sum(duplicated(dane))
+#  brak duplikatów 
 dane_gdansk <- dane %>%
   select(-c(id,longitude,latitude, condition, buildingMaterial,city))
 str(dane_gdansk)
 ```
 
-floor, rokbudowy, czy jest winda, odleglosc od uni Z brakami danych do uzupelnienia. Type i reszta zostaje z brakami danych, bo nie oplaca sie -> jak to uzasadnić?
+#### **Hipoteza główna (H):**
+
+Apartamenty o większym metrażu osiągają wyższe ceny całkowite, ale mieszkania o mniejszym metrażu mają wyższe ceny za metr kwadratowy.
+
+floor, rokbudowy, czy jest winda, odleglosc od uni Z brakami danych do uzupelnienia. Type i reszta zostaje z brakami danych, bo nie oplaca sie -\> jak to uzasadnić?
 
 mice dla zmiennych numerycznych buduje model liniowy, dla kategorzycznych logitowy
 
