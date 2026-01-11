@@ -29,6 +29,8 @@ library(ggpubr)
 ```{r}
 mieszkania<-read_csv("apartments_pl_2024_06.csv")
 dane<-filter(mieszkania, city=="gdansk")
+sum(duplicated(dane))
+#  brak duplikatów 
 dane_gdansk <- dane %>%
   select(-c(id,longitude,latitude, condition, buildingMaterial,city))
 str(dane_gdansk)
