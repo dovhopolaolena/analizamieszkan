@@ -24,8 +24,11 @@ SPRAWDZANIE CZY SA DUPLICATY, FILTRACJA DANYCH PO MIASTU
 dane<-read_csv("apartments_pl_2024_06.csv")
 dane<-filter(dane, city=="gdansk")
 sum(duplicated(dane))#  brak duplikatów-> mozna usunąć kolumne id i iine nie potrzebne kolumny
+# takie wstępne przygotowanie danych
 dane_gdansk <- dane %>%
-  select(-c(id, condition, buildingMaterial,city))
+  select(-c(id, condition, buildingMaterial,city))%>%
+  mutate(across(where(is.character),as.factor))
+# slowniki do etykietowania zmiennych 
 var_labels <- c(
   type = "Typ budynku",
   squareMeters = "Powierzchnia mieszkania [m²]",
@@ -79,7 +82,7 @@ sPRAWDZANIE NA NIE SPÓJNOŚCI DANYCH I BLEDOW LOGICZNYCH Wyniki walidacji regu�
 ```{r}
 # sprawdzanie występowania braków danych, żeby wiedzieć gdzie w regułach musimy dopuśćić wystapowanie NA
 miss_var_summary(dane_gdansk)
-# reguly 
+# reguly: dla zmiennych, w których nie występowały braki danych, nie uwzględniano warunku is.na(). Dla pozostałych zmiennych braki danych pozostawiono i traktowano jako dopuszczalne
 rules_hard <- validator(
 
   squareMeters > 0,
@@ -184,6 +187,7 @@ iqr_outliers <- num_vars %>%
 iqr_outliers %>%
   mutate(variable = label_vars(variable))%>%
   mutate(pct_outliers = round(pct_outliers, 2)) %>%
+  filter(pct_outliers!= 0)%>%
   gt() %>%
   tab_header(
     title = "Identyfikacja wartości odstających (IQR)",
@@ -200,7 +204,8 @@ top_vars <- iqr_outliers %>%
 
 d_top <- dane_gdansk %>%
   select(all_of(top_vars)) %>%
-  pivot_longer(everything(), names_to = "variable", values_to = "value")
+  pivot_longer(everything(), names_to = "variable", values_to = "value")%>%
+filter(value != 0)
 ggplot(d_top, aes(y = value)) +
   geom_boxplot(outlier.colour = "red", outlier.alpha = 0.6) +
   facet_wrap(~ variable, scales = "free_y", labeller = as_labeller(var_labels), ncol = 2) +
@@ -219,15 +224,10 @@ mice dla zmiennych numerycznych buduje model liniowy, dla kategorzycznych logito
 
 ```{r}
 mcar_test(dane_gdansk)
-gg_miss_var(dane_clean)
-vis_miss(dane_clean)
-gg_miss_upset(dane_clean)
-missing_pattern(dane_clean)
-aggr_plot <- VIM::aggr(dane_clean) 
-gg_miss_fct(x=dane_clean,fct=collegeDistance)
-gg_miss_fct(x=dane_clean,fct=type)
-gg_miss_fct(x=dane_clean,fct=floor)
-gg_miss_fct(x=dane_clean,fct=hasElevator)
+gg_miss_var(dane_gdansk)
+vis_miss(dane_gdansk)
+gg_miss_upset(dane_gdansk)
+missing_pattern(dane_gdansk)
 ```
 
 W zbiorze danych przeprowadzono analizę braków, której celem było określenie ich zakresu, struktury oraz mechanizmu powstawania. Łączny odsetek braków wyniósł około 3%, jednak nie były one równomiernie rozłożone między zmiennymi. Najwięcej braków odnotowano w zmiennych type, floor oraz buildYear, co wskazuje, że dotyczą one głównie informacji opisujących cechy budynku. Pozostałe zmienne charakteryzowały się znikomym poziomem braków.
@@ -239,9 +239,6 @@ Ze względu na nielosowy charakter braków oraz ich koncentrację w wybranych zm
 ggmice
 
 ```{r}
-dane_clean$hasElevator <- as.factor(dane_clean$hasElevator)
-dane_clean$type <- as.factor(dane_clean$type)
-
 methods <- make.method(dane_clean)
 methods[] <- ""
 
@@ -284,9 +281,6 @@ hist(dane_clean$floor)
 densityplot(imp, ~ floor)
 xyplot(imp, floor ~ buildYear)
 summary(complete(imp, "long"))
-
-mcar_test(dane_imputed)
-miss_var_summary(dane_imputed)
 # dDIDAĆ STRIP LOT, PRZYNAIMNIEJ SPRAWDZIC O CO CHODZI 
 ```
 
@@ -305,20 +299,9 @@ Zakresy wartości są racjonalne — nie pojawiły się wartości nierealne (np.
 rozdzial 2 sprawdzanie spojnosci danych srtrip plot dla danych po imputacji
 
 ```{r}
-# Dla zmiennych, w których nie występowały braki danych, nie uwzględniano warunku is.na(). Dla pozostałych zmiennych braki danych pozostawiono i traktowano jako dopuszczalne
 ```
 
 ```{r}
-# bledy (wstawiamy NA), 
-# radzenie sobie z bledami
-# dane gotowe do analizy
-
-mcar_test(dane_clean)
-miss_var_summary(dane_clean)
-str(dane_clean) 
-#zmianiamy reste zmiennych na factor, zeby potem mozna bylo wykorzystywac logit, trrzeba zapytac w ktoeym momencie to najlepije zrobic prze czy po imputacji
-dane_clean<- dane_clean%>%
-  mutate(across(where(is.character), as.factor)) 
 ```
 
 dane jakosciowe Rozdzial X : analiza opisowa i wizualizacja zmiennych jakościowych Wykresy i statystyki opisowe do świąt
