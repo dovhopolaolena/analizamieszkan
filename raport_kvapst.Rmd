@@ -1,4 +1,5 @@
 ```{r}
+library(tidyverse)
 library(validate)
 library(readr)
 library(dplyr)
@@ -6,63 +7,227 @@ library(naniar)
 library(finalfit)
 library(mice)
 library(ggplot2)
-options(qwraps2_markup = "markdown")
-library(qwraps2)
-library(arsenal)
-library(e1071)
-library(haven)
-library(papeR)
-library(tidyverse)
-library(ggplot2)
 library(kableExtra)
 library(summarytools)
 library(gtsummary)
-library(classInt)
-library(pastecs)
-library(desctable)
 library(frequency)
 library(corrplot)
 library(ggpubr)
-
+library(leaflet)
+library(tidyr)
+library(gt)
 ```
 
+SPRAWDZANIE CZY SA DUPLICATY, FILTRACJA DANYCH PO MIASTU
+
 ```{r}
-mieszkania<-read_csv("apartments_pl_2024_06.csv")
-dane<-filter(mieszkania, city=="gdansk")
-sum(duplicated(dane))
-#  brak duplikatów 
+dane<-read_csv("apartments_pl_2024_06.csv")
+dane<-filter(dane, city=="gdansk")
+sum(duplicated(dane))#  brak duplikatów-> mozna usunąć kolumne id i iine nie potrzebne kolumny
 dane_gdansk <- dane %>%
-  select(-c(id,longitude,latitude, condition, buildingMaterial,city))
-str(dane_gdansk)
+  select(-c(id, condition, buildingMaterial,city))
+var_labels <- c(
+  type = "Typ budynku",
+  squareMeters = "Powierzchnia mieszkania [m²]",
+  rooms = "Liczba pokoi",
+  floor = "Piętro",
+  floorCount = "Liczba kondygnacji w budynku",
+  buildYear = "Rok budowy",
+  latitude = "Szerokość geograficzna",
+  longitude = "Długość geograficzna",
+  centreDistance = "Odległość od centrum [km]",
+  poiCount = "Liczba punktów POI w pobliżu",
+  schoolDistance = "Odległość do szkoły [km]",
+  clinicDistance = "Odległość do przychodni [km]",
+  postOfficeDistance = "Odległość do poczty [km]",
+  kindergartenDistance = "Odległość do przedszkola [km]",
+  restaurantDistance = "Odległość do restauracji [km]",
+  collegeDistance = "Odległość do uczelni [km]",
+  pharmacyDistance = "Odległość do apteki [km]",
+  ownership = "Forma własności",
+  hasParkingSpace = "Miejsce parkingowe",
+  hasBalcony = "Balkon",
+  hasElevator = "Winda",
+  hasSecurity = "Ochrona",
+  hasStorageRoom = "Komórka lokatorska",
+  price = "Cena całkowita [PLN]"
+)
+
+label_vars <- function(x) {recode(x, !!!var_labels)}
+
+# mapa mieszka -> NIE WIEM W KTÓRYM MOMENCIE NAJLEPIEJ JĄ DODAĆ
+leaflet(dane_gdansk) |>
+  addTiles() |>
+  addCircleMarkers(
+    lng = ~longitude,
+    lat = ~latitude,
+    radius = 3,
+    stroke = FALSE,
+    fillOpacity = 0.4
+  )
+
 ```
 
 #### **Hipoteza główna (H):**
 
 Apartamenty o większym metrażu osiągają wyższe ceny całkowite, ale mieszkania o mniejszym metrażu mają wyższe ceny za metr kwadratowy.
 
-floor, rokbudowy, czy jest winda, odleglosc od uni Z brakami danych do uzupelnienia. Type i reszta zostaje z brakami danych, bo nie oplaca sie -\> jak to uzasadnić?
+Metraż mieszkania istotnie różnicuje poziom cen na rynku nieruchomości, zarówno w ujęciu ceny całkowitej, jak i ceny za metr kwadratowy.
+
+sPRAWDZANIE NA NIE SPÓJNOŚCI DANYCH I BLEDOW LOGICZNYCH Wyniki walidacji reguł twardych nie wykazały żadnych naruszeń spójności logicznej ani dziedzinowej. W związku z brakiem przypadków niespełniających przyjętych warunków, szczegółowe zestawienie tabelaryczne reguł walidacyjnych pominięto, ograniczając prezentację do opisu procedury. Przed imputacją przeprowadzono walidację twardą i miękką regułami logicznymi/dziedzinowymi. Walidacja twarda nie wykazała naruszeń. Reguły miękkie wykazały jedynie przypadki nietypowe, które pozostawiono w zbiorze jako obserwacje potencjalnie realistyczne. W konsekwencji zbiór uznano za spójny do dalszych etapów analizy
+
+```{r}
+# sprawdzanie występowania braków danych, żeby wiedzieć gdzie w regułach musimy dopuśćić wystapowanie NA
+miss_var_summary(dane_gdansk)
+# reguly 
+rules_hard <- validator(
+
+  squareMeters > 0,
+  squareMeters <= 250,
+
+  rooms >= 1,
+  rooms <= 8,         
+
+  squareMeters >= rooms * 8,      
+  squareMeters <= rooms * 40,     
+
+  floor >= 0 | is.na(floor),     
+  floorCount >= 1 | is.na(floorCount),
+  floor <= floorCount | is.na(floor) | is.na(floorCount),
+
+  buildYear >= 1850 | is.na(buildYear),
+  buildYear <= 2025 | is.na(buildYear),
+  
+  centreDistance >= 0,
+  schoolDistance >= 0 | is.na(schoolDistance),
+  clinicDistance >= 0 | is.na(clinicDistance),
+  postOfficeDistance >= 0 | is.na(postOfficeDistance),
+  kindergartenDistance >= 0 | is.na(kindergartenDistance),
+  restaurantDistance >= 0 | is.na(restaurantDistance),
+  collegeDistance >= 0 | is.na(collegeDistance),
+  pharmacyDistance >= 0 | is.na(pharmacyDistance),
+
+  centreDistance <= 20,
+  schoolDistance <= 10 | is.na(schoolDistance),
+  clinicDistance <= 10 | is.na(clinicDistance),
+  postOfficeDistance <= 10 | is.na(postOfficeDistance),
+  kindergartenDistance <= 10 | is.na(kindergartenDistance),
+  restaurantDistance <= 10 | is.na(restaurantDistance),
+  collegeDistance <= 15 | is.na(collegeDistance),
+  pharmacyDistance <= 10 | is.na(pharmacyDistance),
+
+  poiCount >= 0,
+  poiCount <= 300,               
+
+  type %in% c("tenement","blockOfFlats","apartmentBuilding") | is.na(type),
+  ownership %in% c("condominium","cooperative"),
+
+  hasParkingSpace %in% c("yes","no"),
+  hasBalcony %in% c("yes","no"),
+  hasElevator %in% c("yes","no") | is.na(hasElevator),
+  hasSecurity %in% c("yes","no"),
+  hasStorageRoom %in% c("yes","no"),
+
+  price > 0,
+  price / squareMeters >= 8000,
+  price / squareMeters <= 35000
+)
+out_hard <- confront(dane_gdansk, rules_hard)
+summary(out_hard)
+# #dane_gdansk%>%
+# #  summarise(n = sum(!is.na(floor) & !is.na(floorCount) & floor > floorCount))
+# dane_gdansk <- dane_gdansk %>%
+#     mutate(floor = if_else(!is.na(floor) & !is.na(floorCount) & floor > floorCount,
+#                          NA, floor))
+out <- confront(dane_gdansk, rules_hard)
+summary(out)
+summary(out_hard)$fails
+
+rules_soft <- validator(
+
+  !(buildYear < 1945 & floorCount > 7) | is.na(buildYear) | is.na(floorCount),
+  !(floor >= 5 & buildYear >= 1995 & hasElevator == "no") | is.na(floor) | is.na(buildYear) | is.na(hasElevator),
+  !(squareMeters < 35 & rooms >= 3),
+  !(squareMeters > 80 & rooms == 1)
+)
+out_soft <- confront(dane_gdansk, rules_soft)
+summary(out_soft)
+summary(out_soft)$fails
+
+
+# Dla zmiennych, w których nie występowały braki danych, nie uwzględniano warunku is.na(). Dla pozostałych zmiennych braki danych pozostawiono i traktowano jako dopuszczalne
+```
+
+dentyfikacja outlierów metodą IQR
+
+```{r echo=FALSE}
+# wybór zmiennych numerycznych
+num_vars <- dane_gdansk %>% select(where(is.numeric))
+
+iqr_outliers <- num_vars %>%
+  summarise(across(
+    everything(),
+    ~ {
+      q1 <- quantile(.x, 0.25, na.rm = TRUE)
+      q3 <- quantile(.x, 0.75, na.rm = TRUE)
+      iqr <- IQR(.x, na.rm = TRUE)
+      mean(.x < (q1 - 1.5 * iqr) | .x > (q3 + 1.5 * iqr), na.rm = TRUE) * 100
+    }
+  )) %>%
+  pivot_longer(
+    everything(),
+    names_to = "variable",
+    values_to = "pct_outliers"
+  ) %>%
+  arrange(desc(pct_outliers))
+
+iqr_outliers %>%
+  mutate(variable = label_vars(variable))%>%
+  mutate(pct_outliers = round(pct_outliers, 2)) %>%
+  gt() %>%
+  tab_header(
+    title = "Identyfikacja wartości odstających (IQR)",
+    subtitle = "Odsetek obserwacji poza granicami Q1 − 1.5·IQR oraz Q3 + 1.5·IQR"
+  ) %>%
+  cols_label(
+    variable = "Zmienna",
+    pct_outliers = "% obserwacji odstających"
+  )
+top_vars <- iqr_outliers %>%
+  filter(pct_outliers > 0) %>%
+  slice_max(pct_outliers, n = 4) %>%
+  pull(variable)
+
+d_top <- dane_gdansk %>%
+  select(all_of(top_vars)) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "value")
+ggplot(d_top, aes(y = value)) +
+  geom_boxplot(outlier.colour = "red", outlier.alpha = 0.6) +
+  facet_wrap(~ variable, scales = "free_y", labeller = as_labeller(var_labels), ncol = 2) +
+  theme_minimal() +
+  labs(
+    title = "Wykresy pudełkowe zmiennych z najwyższym udziałem outlierów (IQR)",
+    x = NULL,
+    y = "Wartość"
+  )
+
+```
+
+2.1 Braki danych W celu określenia mechanizmu braków danych przeprowadzono test Little MCAR. Wynik testu był istotny statystycznie (χ² = 2374.25, df = 569, p \< 0.001), co pozwala odrzucić hipotezę o całkowicie losowym charakterze braków (MCAR). Oznacza to, że zmienne w zbiorze zawierają braki zależne od innych informacji (MAR) lub od wartości samej zmiennej (MNAR). Braki danych nie mają więc charakteru losowego i wymagają zastosowania zaawansowanej metody imputacji, takiej jak MICE. floor, rokbudowy, czy jest winda, odleglosc od uni Z brakami danych do uzupelnienia. Type i reszta zostaje z brakami danych, bo nie oplaca sie -\> jak to uzasadnić?
 
 mice dla zmiennych numerycznych buduje model liniowy, dla kategorzycznych logitowy
 
 ```{r}
 mcar_test(dane_gdansk)
-```
-
-W celu określenia mechanizmu braków danych przeprowadzono test Little MCAR. Wynik testu był istotny statystycznie (χ² = 2374.25, df = 569, p \< 0.001), co pozwala odrzucić hipotezę o całkowicie losowym charakterze braków (MCAR). Oznacza to, że zmienne w zbiorze zawierają braki zależne od innych informacji (MAR) lub od wartości samej zmiennej (MNAR). Braki danych nie mają więc charakteru losowego i wymagają zastosowania zaawansowanej metody imputacji, takiej jak MICE.
-
-2.1 Braki danych
-
-```{r}
-miss_var_summary(dane_gdansk)
-gg_miss_var(dane_gdansk)
-vis_miss(dane_gdansk)
-gg_miss_upset(dane_gdansk)
-missing_pattern(dane_gdansk)
-aggr_plot <- VIM::aggr(dane_gdansk) 
-gg_miss_fct(x=dane_gdansk,fct=collegeDistance)
-gg_miss_fct(x=dane_gdansk,fct=type)
-gg_miss_fct(x=dane_gdansk,fct=floor)
-gg_miss_fct(x=dane_gdansk,fct=hasElevator)
+gg_miss_var(dane_clean)
+vis_miss(dane_clean)
+gg_miss_upset(dane_clean)
+missing_pattern(dane_clean)
+aggr_plot <- VIM::aggr(dane_clean) 
+gg_miss_fct(x=dane_clean,fct=collegeDistance)
+gg_miss_fct(x=dane_clean,fct=type)
+gg_miss_fct(x=dane_clean,fct=floor)
+gg_miss_fct(x=dane_clean,fct=hasElevator)
 ```
 
 W zbiorze danych przeprowadzono analizę braków, której celem było określenie ich zakresu, struktury oraz mechanizmu powstawania. Łączny odsetek braków wyniósł około 3%, jednak nie były one równomiernie rozłożone między zmiennymi. Najwięcej braków odnotowano w zmiennych type, floor oraz buildYear, co wskazuje, że dotyczą one głównie informacji opisujących cechy budynku. Pozostałe zmienne charakteryzowały się znikomym poziomem braków.
@@ -74,10 +239,10 @@ Ze względu na nielosowy charakter braków oraz ich koncentrację w wybranych zm
 ggmice
 
 ```{r}
-dane_gdansk$hasElevator <- as.factor(dane_gdansk$hasElevator)
-dane_gdansk$type <- as.factor(dane_gdansk$type)
+dane_clean$hasElevator <- as.factor(dane_clean$hasElevator)
+dane_clean$type <- as.factor(dane_clean$type)
 
-methods <- make.method(dane_gdansk)
+methods <- make.method(dane_clean)
 methods[] <- ""
 
 methods["floor"]           <- "pmm"    
@@ -85,7 +250,7 @@ methods["buildYear"]       <- "pmm"
 methods["hasElevator"]     <- "logreg"
 methods["collegeDistance"] <- "pmm"
    
-pred <- make.predictorMatrix(dane_gdansk)
+pred <- make.predictorMatrix(dane_clean)
 pred[,] <- 0   
 
 pred_floor <- c("floorCount", "rooms", "squareMeters",
@@ -99,7 +264,7 @@ pred["type", ] <- 0
 
 set.seed(123)
 imp <- mice(
-  dane_gdansk,
+  dane_clean,
   method = methods,
   predictorMatrix = pred,
   m = 5,
@@ -115,7 +280,7 @@ plot(imp)
 
 
 
-hist(dane_gdansk$floor)
+hist(dane_clean$floor)
 densityplot(imp, ~ floor)
 xyplot(imp, floor ~ buildYear)
 summary(complete(imp, "long"))
@@ -140,89 +305,11 @@ Zakresy wartości są racjonalne — nie pojawiły się wartości nierealne (np.
 rozdzial 2 sprawdzanie spojnosci danych srtrip plot dla danych po imputacji
 
 ```{r}
-sum(duplicated(dane_imputed))
-dane_clean<-distinct(dane_imputed)
-sum(duplicated(dane_clean))
-
-rules_hard <- validator(
-
-  squareMeters > 0,
-  squareMeters <= 250,
-
-  rooms >= 1,
-  rooms <= 8,         
-
-  squareMeters >= rooms * 8,      
-  squareMeters <= rooms * 40,     
-
-  floor >= 0 | is.na(floor),     
-  floorCount >= 1 | is.na(floorCount),
-  floor <= floorCount | is.na(floor) | is.na(floorCount),
-
-  buildYear >= 1850,
-  buildYear <= 2025,
-
-  centreDistance >= 0,
-  schoolDistance >= 0 | is.na(schoolDistance),
-  clinicDistance >= 0 | is.na(clinicDistance),
-  postOfficeDistance >= 0 | is.na(postOfficeDistance),
-  kindergartenDistance >= 0 | is.na(kindergartenDistance),
-  restaurantDistance >= 0 | is.na(restaurantDistance),
-  collegeDistance >= 0,
-  pharmacyDistance >= 0 | is.na(pharmacyDistance),
-
-  centreDistance <= 20,
-  schoolDistance <= 10 | is.na(schoolDistance),
-  clinicDistance <= 10 | is.na(clinicDistance),
-  postOfficeDistance <= 10 | is.na(postOfficeDistance),
-  kindergartenDistance <= 10 | is.na(kindergartenDistance),
-  restaurantDistance <= 10 | is.na(restaurantDistance),
-  collegeDistance <= 15,
-  pharmacyDistance <= 10 | is.na(pharmacyDistance),
-
-  poiCount >= 0,
-  poiCount <= 300,               
-
-  type %in% c("tenement","blockOfFlats","apartmentBuilding") | is.na(type),
-  ownership %in% c("condominium","cooperative"),
-
-  hasParkingSpace %in% c("yes","no"),
-  hasBalcony %in% c("yes","no"),
-  hasElevator %in% c("yes","no"),
-  hasSecurity %in% c("yes","no"),
-  hasStorageRoom %in% c("yes","no"),
-
-  price > 0,
-  price / squareMeters >= 8000,
-  price / squareMeters <= 35000
-)
-out_hard <- confront(dane_clean, rules_hard)
-summary(out_hard)
-
-dane_clean <- dane_clean %>%
-  mutate(
-    floor = ifelse(floor > floorCount, NA, floor)
-  )
-out <- confront(dane_clean, rules_hard)
-summary(out)
-
-
-rules_soft <- validator(
-
-  !(buildYear < 1945 & floorCount > 7) | is.na(floorCount),
-  !(floor >= 5 & buildYear >= 1995 & hasElevator == "no") | is.na(floor),
-  !(squareMeters < 35 & rooms >= 3),
-  !(squareMeters > 80 & rooms == 1)
-)
-out_soft <- confront(dane_clean, rules_soft)
-summary(out_soft)
-
-
 # Dla zmiennych, w których nie występowały braki danych, nie uwzględniano warunku is.na(). Dla pozostałych zmiennych braki danych pozostawiono i traktowano jako dopuszczalne
 ```
 
 ```{r}
-# bledy (wstawiamy NA), duplicaty, braki (byo 21 ) -> NIE PAMIETAM O CO CHODZILO, SPRAWDZIC.CHOZILO O DUPLICATY
+# bledy (wstawiamy NA), 
 # radzenie sobie z bledami
 # dane gotowe do analizy
 
@@ -322,6 +409,7 @@ freq(dane_clean %>% select(where(is.factor)))
 summary(dane_clean %>% select(where(is.numeric)))
 summary(dane_clean %>% select(where(is.factor)))
 
+
 num_vars <- dane_clean %>%
   select(where(is.numeric))
 cor_matrix <- cor(
@@ -356,4 +444,23 @@ round(cor_matrix, 2)
 
 
 # statystyki opisowe  dla zmiennych jakosciowych
+
+```
+
+```{r}
+# testy statystyczne 
+library(ggstatsplot)
+
+ggbetweenstats(
+  data = dane_clean,
+  x = hasBalcony,
+  y = price,
+  title = "Wpływ balkonu na cenę mieszkania",
+  xlab = "Balkon",
+  ylab = "Cena (PLN)"
+) 
+# ilościowe
+
+# jajosciowe 
+
 ```
