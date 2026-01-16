@@ -187,33 +187,15 @@ iqr_outliers %>%
   mutate(variable = label_vars(variable))%>%
   mutate(pct_outliers = round(pct_outliers, 2)) %>%
   filter(pct_outliers!= 0)%>%
-  gt() %>%
-  tab_header(
-    title = "Identyfikacja wartości odstających (IQR)",
-    subtitle = "Odsetek obserwacji poza granicami Q1 − 1.5·IQR oraz Q3 + 1.5·IQR"
-  ) %>%
-  cols_label(
-    variable = "Zmienna",
-    pct_outliers = "% obserwacji odstających"
-  )
-top_vars <- iqr_outliers %>%
-  filter(pct_outliers > 0) %>%
-  slice_max(pct_outliers, n = 4) %>%
-  pull(variable)
-
-d_top <- dane_gdansk %>%
-  select(all_of(top_vars)) %>%
-  pivot_longer(everything(), names_to = "variable", values_to = "value")%>%
-filter(value != 0)
-ggplot(d_top, aes(y = value)) +
-  geom_boxplot(outlier.colour = "red", outlier.alpha = 0.6) +
-  facet_wrap(~ variable, scales = "free_y", labeller = as_labeller(var_labels), ncol = 2) +
-  theme_minimal() +
-  labs(
-    title = "Wykresy pudełkowe zmiennych z najwyższym udziałem outlierów (IQR)",
-    x = NULL,
-    y = "Wartość"
-  )
+  # gt() %>%
+  # tab_header(
+  #   title = "Identyfikacja wartości odstających (IQR)",
+  #   subtitle = "Odsetek obserwacji poza granicami Q1 − 1.5·IQR oraz Q3 + 1.5·IQR"
+  # ) %>%
+  # cols_label(
+  #   variable = "Zmienna",
+  #   pct_outliers = "% obserwacji odstających"
+  # )
 
 ```
 
@@ -238,66 +220,100 @@ Ze względu na nielosowy charakter braków oraz ich koncentrację w wybranych zm
 ggmice
 
 ```{r}
-methods <- make.method(dane_clean)
+# methods <- make.method(dane_gdansk)
+# methods[] <- ""
+# 
+# methods["floor"]           <- "pmm"    
+# methods["buildYear"]       <- "pmm"
+# methods["hasElevator"]     <- "logreg"
+# methods["collegeDistance"] <- "pmm"
+#    
+# pred <- make.predictorMatrix(dane_gdansk)
+# pred[,] <- 0   
+# 
+# pred_floor <- c("floorCount", "rooms", "squareMeters",
+#                 "buildYear", "hasElevator",
+#                 "centreDistance", "poiCount")
+# 
+# pred["floor", pred_floor] <- 1
+# 
+# pred[, "type"] <- 0
+# pred["type", ] <- 0
+# 
+# set.seed(123)
+# imp <- mice(
+#   dane_clean,
+#   method = methods,
+#   predictorMatrix = pred,
+#   m = 5,
+#   maxit = 10,
+#   ridge = 1e-5
+# )
+# 
+# dane_imputed <- complete(imp, 1)
+# 
+# ggplot()+
+#   geom_miss_point(data = dane_gdansk, aes(x = floor, y = buildYear , color = "red"))
+# plot(imp)
+# 
+# 
+# 
+# hist(dane_clean$floor)
+# densityplot(imp, ~ floor)
+# xyplot(imp, floor ~ buildYear)
+# summary(complete(imp, "long"))
+
+
+methods <- make.method(dane_gdansk)
 methods[] <- ""
 
-methods["floor"]           <- "pmm"    
+methods["floor"]           <- "pmm"
 methods["buildYear"]       <- "pmm"
 methods["hasElevator"]     <- "logreg"
 methods["collegeDistance"] <- "pmm"
-   
-pred <- make.predictorMatrix(dane_clean)
-pred[,] <- 0   
+methods["type"]            <- ""   
 
-pred_floor <- c("floorCount", "rooms", "squareMeters",
-                "buildYear", "hasElevator",
-                "centreDistance", "poiCount")
+pred <- make.predictorMatrix(dane_gdansk)
+pred[,] <- 0
+diag(pred) <- 0
 
-pred["floor", pred_floor] <- 1
-
+pred["floor", c("floorCount","rooms","squareMeters","buildYear","hasElevator","poiCount")] <- 1
+pred["buildYear", c("floorCount","centreDistance","poiCount","squareMeters","rooms")] <- 1
+pred["hasElevator", c("floorCount","buildYear","floor")] <- 1
+pred["collegeDistance", c("centreDistance","poiCount","latitude","longitude")] <- 1
 pred[, "type"] <- 0
 pred["type", ] <- 0
 
 set.seed(123)
-imp <- mice(
-  dane_clean,
-  method = methods,
-  predictorMatrix = pred,
-  m = 5,
-  maxit = 10,
-  ridge = 1e-5
-)
-
+imp <- mice(dane_gdansk, method = methods, predictorMatrix = pred, m = 5, maxit = 20, ridge = 1e-5)
 dane_imputed <- complete(imp, 1)
 
-ggplot()+
-  geom_miss_point(data = dane_gdansk, aes(x = floor, y = buildYear , color = "red"))
-plot(imp)
 
 
 
-hist(dane_clean$floor)
-densityplot(imp, ~ floor)
-xyplot(imp, floor ~ buildYear)
-summary(complete(imp, "long"))
 # dDIDAĆ STRIP LOT, PRZYNAIMNIEJ SPRAWDZIC O CO CHODZI 
 ```
-
-W zbiorze danych imputacją objęto wyłącznie zmienne z udziałem braków przekraczającym 3%, z wyłączeniem zmiennej type, której zgodnie z zaleceniem prowadzącego nie imputowano. Ostatecznie uzupełniono cztery zmienne: floor, buildYear, hasElevator oraz collegeDistance.
-
-Typy zmiennych zostały odpowiednio przygotowane: hasElevator oraz type zadeklarowano jako zmienne kategoryczne (factor), natomiast floor pozostawiono jako zmienną liczbową. Jest to istotne, ponieważ pakiet mice dobiera metodę imputacji na podstawie typu danych.
-
-Do imputacji zmiennych liczbowych (floor, buildYear, collegeDistance) zastosowano metodę PMM (Predictive Mean Matching), która dobiera brakujące wartości z rzeczywistych obserwacji o podobnych przewidywanych wartościach, dzięki czemu zachowuje naturalny rozkład danych. Binarną zmienną hasElevator imputowano metodą regresji logistycznej (logreg), co gwarantuje pozostanie wartości w zakresie 0/1.
-
-W celu zwiększenia stabilności imputacji ograniczono liczbę predyktorów używanych do przewidywania zmiennej floor jedynie do zmiennych merytorycznie powiązanych (m.in. floorCount, rooms, squareMeters, buildYear, centreDistance, poiCount). Dodatkowo zmienną type wyłączono z macierzy predyktorów, aby nie wpływała ona na modele imputacyjne ze względu na własne braki. Zastosowano również niewielką regularyzację (ridge = 1e−5), co zapobiegało problemom numerycznym.
-
-Imputację przeprowadzono funkcją mice() z pięcioma iteracjami kompletnego zestawu danych (m = 5). Kompletny zbiór uzyskano poleceniem complete(imp, 1). Zastosowane podejście pozwoliło uzyskać realistyczne i statystycznie poprawne uzupełnienie braków danych, zgodnie z wytycznymi prowadzącego
-
-Zakresy wartości są racjonalne — nie pojawiły się wartości nierealne (np. ujemne odległości, nierealne lata budowy czy zerowe piętra). Cena nieruchomości również mieści się w realnym zakresie obserwowanym w danych wejściowych. Wszystko to potwierdza, że imputacja została wykonana poprawnie, a dane mogą być bezpiecznie wykorzystane w dalszej analizie ekonometrycznej i modelowaniu.
 
 rozdzial 2 sprawdzanie spojnosci danych srtrip plot dla danych po imputacji
 
 ```{r}
+plot(imp)
+
+
+densityplot(imp, ~ floor)
+densityplot(imp, ~ buildYear)
+densityplot(imp, ~ collegeDistance)
+
+# 5) Relacje między zmiennymi (czy imputacja nie psuje logiki)
+xyplot(imp, floor ~ floorCount)
+
+# 6) Stripplot (czy imputacje nie „przyklejają się” do jednej wartości)
+# Dobry do wykrywania degeneracji imputacji
+stripplot(imp, floor ~ .imp, pch = 20, cex = 1)
+stripplot(imp, buildYear ~ .imp, pch = 20, cex = 1)
+stripplot(imp, collegeDistance ~ .imp, pch = 20, cex = 1)
+
+
 ```
 
 ```{r}
