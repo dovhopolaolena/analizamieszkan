@@ -68,7 +68,6 @@ leaflet(dane_gdansk) |>
     stroke = FALSE,
     fillOpacity = 0.4
   )
-
 ```
 
 #### **Hipoteza główna (H):**
