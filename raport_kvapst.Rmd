@@ -13,6 +13,7 @@ library(gtsummary)
 library(frequency)
 library(corrplot)
 library(ggpubr)
+library(skimr)
 library(leaflet)
 library(tidyr)
 library(gt)
@@ -27,7 +28,8 @@ sum(duplicated(dane))#  brak duplikatów-> mozna usunąć kolumne id i iine nie 
 # takie wstępne przygotowanie danych
 dane_gdansk <- dane %>%
   select(-c(id, condition, buildingMaterial,city))%>%
-  mutate(across(where(is.character),as.factor))
+  mutate(across(where(is.character),as.factor))%>%
+  mutate(price_m2 = price / squareMeters)
 # slowniki do etykietowania zmiennych 
 var_labels <- c(
   type = "Typ budynku",
@@ -53,7 +55,8 @@ var_labels <- c(
   hasElevator = "Winda",
   hasSecurity = "Ochrona",
   hasStorageRoom = "Komórka lokatorska",
-  price = "Cena całkowita [PLN]"
+  price = "Cena całkowita [PLN]",
+  price_m2 = "Cena za metr kwadratowy [PLN/m²]"
 )
 
 label_vars <- function(x) {recode(x, !!!var_labels)}
@@ -183,10 +186,10 @@ iqr_outliers <- num_vars %>%
   ) %>%
   arrange(desc(pct_outliers))
 
-iqr_outliers %>%
-  mutate(variable = label_vars(variable))%>%
-  mutate(pct_outliers = round(pct_outliers, 2)) %>%
-  filter(pct_outliers!= 0)%>%
+# iqr_outliers %>%
+#   mutate(variable = label_vars(variable))%>%
+#   mutate(pct_outliers = round(pct_outliers, 2)) %>%
+#   filter(pct_outliers!= 0)%>%
   # gt() %>%
   # tab_header(
   #   title = "Identyfikacja wartości odstających (IQR)",
@@ -346,7 +349,7 @@ ggplot(dane_clean, aes(x = squareMeters, y = price)) +
   ) +
   theme_minimal()
 # c) cena za metrz kwadratowy a odległość od ....
-library(dplyr)
+
 df <- dane_clean %>%
   mutate(price_m2 = price / squareMeters)
 
@@ -396,52 +399,49 @@ ggplot(df, aes(x = hasBalcony, y = price)) +
 ```
 
 ```{r summarytools_print, results='asis', echo=FALSE}
+var_labels <- as.list(var_labels)
 
 
-print(dfSummary(dane_clean, style = "grid"), method = "render", theme = "light")
 
-descr(dane_clean %>% select(where(is.numeric)))   # tylko numeryczne
-freq(dane_clean %>% select(where(is.factor))) 
-
-# statystyki opisowe  dla zmiennych ilosciowych
-summary(dane_clean %>% select(where(is.numeric)))
-summary(dane_clean %>% select(where(is.factor)))
+# 
+# dane_imputed %>%
+#   select(where(is.numeric)) %>%
+#   skim()
 
 
-num_vars <- dane_clean %>%
-  select(where(is.numeric))
-cor_matrix <- cor(
-  num_vars,
-  use = "pairwise.complete.obs",
-  method = "pearson"
-)
 
-round(cor_matrix, 2)
-corrplot(cor_matrix, method = "color", type = "upper")
+tab_num <- dane_imputed %>%
+  select(where(is.numeric)) %>%
+  skim()%>%
+  dplyr::filter(skim_type == "numeric") %>%
+  dplyr::select(
+    zmienna = skim_variable,
+    complete_rate,
+    mean = `numeric.mean`,
+    sd   = `numeric.sd`,
+    min  = `numeric.p0`,
+    q1   = `numeric.p25`,
+    median = `numeric.p50`,
+    q3   = `numeric.p75`,
+    max  = `numeric.p100`
+  ) %>%
+  mutate(complete_rate = round(complete_rate * 100, 1))
 
-num_vars <- dane_clean %>%
-  select(
-    price,
-    squareMeters,
-    rooms,
-    floor,
-    buildYear,
-    centreDistance,
-    schoolDistance,
-    clinicDistance,
-    restaurantDistance
+tab_num %>%
+  knitr::kable(
+    format = "html",
+    digits = 2,
+    caption = "Statystyki opisowe (zmienne numeryczne)"
+  ) %>%
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover")
   )
 
-cor_matrix <- cor(
-  num_vars,
-  use = "pairwise.complete.obs",
-  method = "spearman"
-)
 
-round(cor_matrix, 2)
+kable(tab_num, format = "html", digits = 2, caption = "...") %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
-
-# statystyki opisowe  dla zmiennych jakosciowych
 
 ```
 
