@@ -9,22 +9,79 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r biblioteki, include=FALSE}
+library(tidyverse)
+library(validate)
+library(readr)
+library(dplyr)
+library(naniar)
+library(finalfit)
+library(mice)
+library(ggplot2)
+library(kableExtra)
+library(summarytools)
+library(gtsummary)
+library(frequency)
+library(corrplot)
+library(ggpubr)
+library(leaflet)
+library(tidyr)
+library(gt)
+library(knitr)
 ```
 
-## Including Plots
+## Wprowadzenie 
 
-You can also embed plots, for example:
+Rynek nieruchomości mieszkaniowych w dużych miastach charakteryzuje się znaczną złożonością oraz silnym zróżnicowaniem cen i cech lokali. Miasto Gdańsk, jako jeden z głównych ośrodków miejskich w Polsce, stanowi interesujący obszar badań ze względu na dynamiczny rozwój urbanistyczny, zróżnicowaną strukturę dzielnic oraz istotny wpływ czynników lokalizacyjnych na ceny mieszkań.
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+Celem projektu jest analiza rynku mieszkań na obszarze miasta Gdańsk z wykorzystaniem narzędzi i metod analizy danych dostępnych w środowisku RStudio. Badanie obejmuje eksploracyjną analizę danych, identyfikację zależności pomiędzy wybranymi cechami mieszkań (takimi jak metraż, liczba pokoi, lokalizacja czy odległość od centrum) oraz ocenę ich wpływu na poziom cen. Szczególną uwagę poświęcono analizie rozkładów zmiennych, zależności korelacyjnych oraz wizualizacji danych przestrzennych.
+
+Projekt realizowany jest w ramach przedmiotu „Analiza danych w R” i ma na celu praktyczne zastosowanie poznanych metod statystycznych oraz narzędzi programistycznych języka R. Uzyskane wyniki pozwalają na lepsze zrozumienie mechanizmów kształtujących ceny mieszkań w Gdańsku oraz stanowią podstawę do dalszych, bardziej zaawansowanych analiz ekonometrycznych i predykcyjnych.
+
+```{r tabela opisu danych, echo=FALSE}
+opis_zmiennych <- data.frame(
+  zmienna = c(
+    "id", "city", "type", "squareMeters", "rooms", "floor",
+    "floorCount", "buildYear", "latitude", "longitude",
+    "centreDistance", "poiCount", "[poiName]Distance",
+    "ownership", "condition", "has[features]", "cena"
+  ),
+  wyjasnienie = c(
+    "identyfikator nieruchomości",
+    "nazwa miasta, w którym znajduje się nieruchomość",
+    "typ budynku",
+    "wielkość mieszkania w metrach kwadratowych",
+    "liczba pokoi w mieszkaniu",
+    "piętro, na którym znajduje się mieszkanie",
+    "całkowita liczba pięter w budynku",
+    "rok, w którym budynek został zbudowany",
+    "szerokość geograficzna nieruchomości",
+    "długość geograficzna nieruchomości",
+    "odległość od centrum miasta w kilometrach",
+    "liczba interesujących miejsc w promieniu 500 m",
+    "odległość do najbliższego interesującego punktu (szkoły, przychodnie, poczta, przedszkola, restauracje, uczelnie, apteki)",
+    "rodzaj własności nieruchomości",
+    "stan mieszkania",
+    "czy nieruchomość posiada kluczowe udogodnienia, takie jak przypisane miejsce parkingowe, balkon, winda, ochrona, komórka lokatorska",
+    "cena ofertowa w złotych polskich"
+  )
+)
+
+kable(
+  opis_zmiennych,
+  col.names = c("Zmienna", "Opis zmiennej"),
+  caption = "Opis zmiennych zawartych w zbiorze danych"
+) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "bordered"),
+    full_width = FALSE
+  )
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
+
+
+
+
