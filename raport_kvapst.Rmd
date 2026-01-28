@@ -262,76 +262,7 @@ stripplot(imp, collegeDistance ~ .imp, pch = 20, cex = 1)
 
 dane jakosciowe Rozdzial X : analiza opisowa i wizualizacja zmiennych jakościowych Wykresy i statystyki opisowe do świąt
 
-```{r}
-# Wykresy zmiennych ilościowych
-# a) Rozkład cen mieszkań, czy trzeb pokazac takze w skali log?
-# 
-# ggplot(dane_clean, aes(x = price)) +
-#   geom_histogram(bins = 40, fill = "#4292c6", color = "white") +
-#   scale_x_continuous(labels = scales::comma) +
-#   labs(
-#     title = "Rozkład cen mieszkań",
-#     x = "Cena (PLN)",
-#     y = "Liczba ofert"
-#   ) +
-# #   theme_minimal()
-# # b)cena a metraż
-# ggplot(dane_clean, aes(x = squareMeters, y = price)) +
-#   geom_point(alpha = 0.4, color = "#2b8cbe") +
-#   geom_smooth(method = "lm", se = FALSE, color = "#d95f0e") +
-#   scale_y_continuous(labels = scales::comma) +
-#   labs(
-#     title = "Zależność ceny od metrażu",
-#     x = "Metraż (m²)",
-#     y = "Cena (PLN)"
-#   ) +
-#   theme_minimal()
-# # # # c) cena za metrz kwadratowy a odległość od ....
-# # #
-# ggplot(df, aes(x = centreDistance, y = price_m2)) +
-#   geom_point(alpha = 0.4, color = "#74a9cf") +
-#   geom_smooth(method = "loess", color = "red") +
-#   scale_y_continuous(labels = scales::comma) +
-#   labs(
-#     title = "Cena za m² a odległość od centrum",
-#     x = "Odległość od centrum (km)",
-#     y = "Cena za m² (PLN)"
-#   ) +
-#   theme_minimal()
-#  # wykresy zmiennych jakościowych
-# # a) typ mieszkania w porównaniu do ilości ? moze zamienic na cos ineego -> BOO A DUŻO BRAKÓW BYŁO
-# ggplot(df, aes(x = type)) +
-#   geom_bar(fill = "#6baed6") +
-#   labs(
-#     title = "Liczba ofert według typu mieszkania",
-#     x = "Typ",
-#     y = "Liczba ofert"
-#   ) +
-#   theme_minimal()
-# # b) porównanie do ceny
-# 
-# # d) balkon a cena
-# ggplot(df, aes(x = hasBalcony, y = price)) +
-#   geom_boxplot(fill = "#a1d99b") +
-#   scale_y_continuous(labels = scales::comma) +
-#   labs(
-#     title = "Wpływ balkonu na cenę mieszkania",
-#     x = "Balkon",
-#     y = "Cena (PLN)"
-#   ) +
-#   theme_minimal()
-# ====================================================================================================
-
-# # # liczba pokoi a cena
-ggplot(dane_imputed, aes(x = factor(rooms), y = price)) +
-  geom_boxplot(fill = "#9ecae1") +
-  scale_y_continuous(labels = scales::comma) +
-  labs(
-    title = "Cena mieszkań a liczba pokoi",
-    x = "Liczba pokoi",
-    y = "Cena (PLN)"
-  ) +
-  theme_minimal()
+```{r wykresy}
 # # metraż a cena
 dane_imputed %>%
   mutate(
@@ -369,11 +300,11 @@ dane_imputed %>%
   ) +
   theme_minimal()
 dane_imputed %>%
+  filter(!is.na(floor), hasElevator %in% c("yes","no"))%>%
   mutate(
     floor_bin = cut(floor, breaks = c(-Inf,1,3,5,10,Inf),
                     labels = c("1","2–3","4–5","6–10","11+"))
   ) %>%
-  filter(hasElevator %in% c("yes","no")) %>%
   ggplot(aes(x = floor_bin, y = price_m2, fill = hasElevator)) +
   geom_boxplot(position = position_dodge(width = 0.8)) +
   scale_y_continuous(labels = scales::comma) +
@@ -394,56 +325,9 @@ ggplot(dane_imputed, aes(x = hasBalcony, y = price_m2)) +
     y = "Cena za m² [PLN]"
   ) +
   theme_minimal()
-
-dane_imputed %>%
-  mutate(
-    centre_bin = cut(
-      centreDistance,
-      breaks = c(0, 1, 3, 5, 8, Inf),
-      labels = c("≤1 km","1–3","3–5","5–8",">8")
-    )
-  ) %>%
-  ggplot(aes(x = price_m2, y = centre_bin, fill = centre_bin)) +
-  geom_density_ridges(alpha = 0.7, show.legend = FALSE) +
-  scale_x_continuous(labels = scales::comma) +
-  labs(
-    title = "Rozkład ceny za m² w zależności od odległości od centrum",
-    x = "Cena za m² [PLN]",
-    y = "Odległość od centrum"
-  ) +
-  theme_minimal()
-
-heat_data <- dane_imputed %>%
-  mutate(
-    centre_bin = cut(centreDistance, c(0,1,3,5,8,Inf)),
-    rooms = factor(rooms)
-  ) %>%
-  group_by(centre_bin, rooms) %>%
-  summarise(median = median(price_m2), .groups = "drop")
-
-ggplot(heat_data, aes(x = rooms, y = centre_bin, fill = median)) +
-  geom_tile() +
-  scale_fill_viridis_c(labels = scales::comma) +
-  labs(
-    title = "Mediana ceny za m² według liczby pokoi i odległości od centrum",
-    x = "Liczba pokoi",
-    y = "Odległość od centrum",
-    fill = "Mediana ceny"
-  ) +
-  theme_minimal()
+###  Różnice cen za m² pomiędzy mieszkaniami z balkonem i bez balkonu są relatywnie niewielkie w porównaniu z innymi czynnikami ### 
 
 
-leaflet(dane_imputed) %>%
-  addProviderTiles("CartoDB.Positron") %>%
-  addCircleMarkers(
-    lng = ~longitude,
-    lat = ~latitude,
-    radius = 3,
-    color = ~colorNumeric("viridis", price_m2)(price_m2),
-    stroke = FALSE,
-    fillOpacity = 0.6,
-    popup = ~paste0("Cena/m²: ", scales::comma(price_m2), " PLN")
-  )
 # ETU TOCZNO OSZTAWLIAJEM
 pal <- colorNumeric("viridis", domain = dane_imputed$price_m2, na.color = "transparent")
 
@@ -459,24 +343,6 @@ leaflet(dane_imputed) %>%
   ) %>%
   addLegend("bottomright", pal = pal, values = ~price_m2,
             title = "Cena za m² [PLN]", labFormat = labelFormat())
-# heatmapa gęstości ofert:
-leaflet(dane_imputed) %>%
-  addProviderTiles("CartoDB.Positron") %>%
-  addHeatmap(
-    lng = ~longitude, lat = ~latitude,
-    blur = 20, radius = 15,
-    max = 1
-  )
-# heatmapa „gdzie drogo” (waga = cena/m²):
-leaflet(dane_imputed) %>%
-  addProviderTiles("CartoDB.Positron") %>%
-  addHeatmap(
-    lng = ~longitude, lat = ~latitude,
-    intensity = ~price_m2,
-    blur = 0.1, radius = 15,
-    max = max(dane_imputed$price_m2, na.rm = TRUE)
-  )
-
 
 ```
 
@@ -524,18 +390,7 @@ tab_bin <- dane_imputed %>%
     yes_pct = round(yes_n / n_nonmiss * 100, 1),
     .groups = "drop"
   )
- # balkon x winda
-tab_cont <- dane_imputed %>%
-  select(hasBalcony, hasElevator) %>%
-  filter(!is.na(hasBalcony), !is.na(hasElevator)) %>%
-  count(hasBalcony, hasElevator, name = "n") %>%
-  group_by(hasBalcony) %>%
-  mutate(pct_row = round(n / sum(n) * 100, 1)) %>%
-  ungroup()
 
-tab_matrix <- table(dane_imputed$hasBalcony, dane_imputed$hasElevator)
-chi <- chisq.test(tab_matrix)
-chi
 tab_cat_meta <- tab_cat_meta %>% mutate(variable = label_vars(variable))
 tab_cat_dist <- tab_cat_dist %>% mutate(variable = label_vars(variable))
 tab_cat_top  <- tab_cat_top  %>% mutate(variable = label_vars(variable))
@@ -544,8 +399,6 @@ tab_bin      <- tab_bin      %>% mutate(variable = label_vars(variable))
 kable(tab_cat_meta, format = "html", digits = 2, caption = "Statystyki opisowe zmiennych jakościowych", col.names = c("Zmienna", "Liczba obserwacji", "Liczba braków", "% kompletności", "Liczba kategorii")) %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 kable(tab_bin, format = "html", digits = 2, caption = "Procent 'tak' w zmiennych binarnych", col.names = c("Zmienna", "Liczba obserwacji", "Liczba braków", "Liczba niebraków", "Liczba 'tak'", "% 'tak'")) %>%
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-kable(tab_cont, format = "html", digits = 2, caption = "Tabela kontyngencji: Balkon vs Winda", col.names = c("Balkon", "Winda", "Liczba obserwacji", "% w wierszu")) %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
 
@@ -568,6 +421,7 @@ tab_disc <- dane_imputed %>%
     max  = `numeric.p100`
   ) %>%
   mutate(complete_rate = round(complete_rate * 100, 1), zmienna = label_vars(zmienna))
+### Niektóre zmienne (rok budowy, liczba punktów POI) wykazują znaczną zmienność i skośność, co zostało uwzględnione na etapie modelowania ###
 # zmienne ciagle
 cont_vars <- c("squareMeters","price","price_m2")
 tab_num <- dane_imputed %>%
