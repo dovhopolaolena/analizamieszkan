@@ -30,6 +30,10 @@ library(leaflet)
 library(tidyr)
 library(gt)
 library(knitr)
+library(tibble)
+library(skimr)
+library(leaflet.extras)
+library(ggridges)
 ```
 
 ## Wprowadzenie 
@@ -87,12 +91,13 @@ W związku z tym sformułowano następujące pytania badawcze:
   • Czy siła i kierunek zależności pomiędzy odległością od centrum a ceną za metr kwadratowy różnią się w zależności od standardu technicznego mieszkania?
   • Czy metraż mieszkania jest dodatnio związany z ceną całkowitą oraz ujemnie związany z ceną za metr kwadratowy?
 
-##  Przygotowanie danych 
-### Wstępne przetwarzanie i selekcja danych
-W pierwszym kroku wczytane dane są ograniczane wyłącznie do obserwacji dotyczących miasta Gdańsk, dzięki czemu dalsza analiza koncentruje się na jednym, spójnym rynku lokalnym.
-Natępnie realizuje się podstawowy pipeline przygotowania danych do analizy cen mieszkań w Gdańsku: po wczytaniu i przefiltrowaniu danych do jednego miasta wykonywane jest wstępne czyszczenie obejmujące kontrolę duplikatów oraz selekcję zmiennych istotnych analitycznie, następnie standaryzowane są typy danych poprzez konwersję zmiennych kategorycznych do faktorów, a na końcu tworzona jest zmienna ceny za metr kwadratowy, umożliwiająca porównywanie ofert niezależnie od ich metrażu.
+##  Przygotowanie i kontrola jakości danych 
+W niniejszym rozdziale przedstawiono proces przygotowania danych do analizy cen mieszkań w Gdańsku. Obejmuje on wstępne przetwarzanie danych, analizę braków, walidację spójności logicznej oraz identyfikację obserwacji odstających, których celem było zapewnienie jakości i wiarygodności dalszych analiz statystycznych.
 
+### Wstępne przetwarzanie i selekcja danych
+W pierwszym etapie dane zostały ograniczone do obserwacji dotyczących miasta Gdańsk, co pozwoliło skoncentrować analizę na jednym, spójnym rynku lokalnym. Następnie przeprowadzono podstawowe czynności przygotowawcze obejmujące kontrolę duplikatów, selekcję zmiennych istotnych analitycznie, standaryzację typów danych oraz utworzenie zmiennej ceny za metr kwadratowy.
 ```{r wstep, include=FALSE}
+setwd('/Users/olenadovhopola/Desktop/magisterka ')
 dane<-read_csv("apartments_pl_2024_06.csv")
 dane<-filter(dane, city=="gdansk")
 sum(duplicated(dane))#  brak duplikatów-> mozna usunąć kolumne id i iine nie potrzebne kolumny
@@ -132,22 +137,10 @@ var_labels <- c(
 var_labels <- as.list(var_labels)
 label_vars <- function(x) {recode(x, !!!var_labels)}
 ```
-Ostatnim elementem jest wstępna wizualizacja przestrzenna danych w postaci interaktywnej mapy, umożliwiającej analizę rozmieszczenia ofert mieszkaniowych w przestrzeni miasta.
-```{r  mapa gdansk, echo=FALSE}
-# mapa mieszka -> NIE WIEM W KTÓRYM MOMENCIE NAJLEPIEJ JĄ DODAĆ
-leaflet(dane_gdansk) |>
-  addTiles() |>
-  addCircleMarkers(
-    lng = ~longitude,
-    lat = ~latitude,
-    radius = 3,
-    stroke = FALSE,
-    fillOpacity = 0.4
-  )
-```
+W wyniku kontroli nie stwierdzono występowania duplikatów obserwacji, co pozwoliło na zachowanie pełnej liczby rekordów w dalszej analizie.
 
-### Analiza braków danych
-W tym kroku w pierwszej kolejności sprawdza się występowania braków danych, żeby wiedzieć gdzie w regułach może dopuśćić się wystapowanie NA.
+### Analiza braków danych 
+W niniejszym podrozdziale przeprowadzono analizę występowania braków danych w zbiorze ofert mieszkaniowych zlokalizowanych w Gdańsku. Celem tego etapu było określenie zakresu i struktury braków danych oraz ocena ich potencjalnego wpływu na dalszą analizę statystyczną.
 ```{r braki danych, echo=FALSE}
 miss_var_summary(dane_gdansk) |>
   slice(1:12) |>
@@ -167,8 +160,13 @@ miss_var_summary(dane_gdansk) |>
   )
 ```
 
+Wyniki analizy wskazują, że większość zmiennych w zbiorze danych nie zawiera braków lub charakteryzuje się ich niewielkim udziałem. Braki danych występują jedynie w wybranych zmiennych i nie mają charakteru dominującego ani systematycznego, co pozwala uznać zbiór danych za kompletny w stopniu wystarczającym do dalszych analiz.
+
+Ze względu na występowanie braków w wybranych zmiennych podjęto decyzję o zastosowaniu imputacji wielokrotnej w kolejnym etapie, aby ograniczyć utratę informacji i zachować liczebność próby.
+
+### Walidacja spójności danych
+W celu oceny poprawności logicznej i dziedzinowej danych przeprowadzono walidację spójności z wykorzystaniem zestawu reguł twardych oraz miękkich. Reguły twarde obejmowały jednoznaczne ograniczenia dziedzinowe i logiczne, natomiast reguły miękkie miały charakter heurystyczny i służyły identyfikacji obserwacji potencjalnie nietypowych.
 ```{r walidacja reguł twardych i miękkich, include=FALSE}
-# reguly: dla zmiennych, w których nie występowały braki danych, nie uwzględniano warunku is.na(). Dla pozostałych zmiennych braki danych pozostawiono i traktowano jako dopuszczalne
 rules_hard <- validator(
 
   squareMeters > 0,
@@ -237,11 +235,7 @@ rules_soft <- validator(
 out_soft <- confront(dane_gdansk, rules_soft)
 summary(out_soft)
 summary(out_soft)$fails
-
-
-# Dla zmiennych, w których nie występowały braki danych, nie uwzględniano warunku is.na(). Dla pozostałych zmiennych braki danych pozostawiono i traktowano jako dopuszczalne
 ```
-Następnie zdefiniowano zestaw reguł twardych, obejmujących podstawowe ograniczenia dziedzinowe oraz logiczne. Reguły te miały na celu identyfikację obserwacji jednoznacznie błędnych lub niespójnych.Te reguły twarde zostały zastosowane do zbioru danych, a ich spełnienie podsumowano w formie zbiorczej, bez prezentowania szczegółowych tabel naruszeń. Wyniki walidacji nie wykazały istotnych naruszeń spójności logicznej ani dziedzinowej, co pozwoliło uznać zbiór danych za poprawny na poziomie podstawowych ograniczeń.
 
 ```{r tabela_reguly_twarde, echo=FALSE, message=FALSE, warning=FALSE}
 tab_hard <- summary(out_hard) |>
@@ -295,7 +289,6 @@ tab_hard |>
   )
 ```
 
-Dodatkowo przeprowadzono walidację miękką, opartą na regułach heurystycznych identyfikujących obserwacje nietypowe, lecz potencjalnie realistyczne, takie jak niestandardowe relacje pomiędzy rokiem budowy, liczbą kondygnacji, obecnością windy, metrażem i liczbą pokoi. Reguły te nie miały charakteru eliminacyjnego, lecz służyły jedynie do sygnalizacji możliwych anomalii. Zidentyfikowane przypadki pozostawiono w zbiorze danych, uznając je za możliwe do zaobserwowania na rzeczywistym rynku nieruchomości.
 ```{r tabela_reguly_miekkie, echo=FALSE, message=FALSE, warning=FALSE}
 library(dplyr)
 library(gt)
@@ -350,11 +343,11 @@ tab_soft |>
     data_row.padding = px(3)
   )
 ```
+Wyniki walidacji reguł twardych nie wykazały istotnych naruszeń spójności danych, co pozwala uznać zbiór za poprawny pod względem podstawowych ograniczeń logicznych i dziedzinowych. Reguły miękkie wskazały jedynie niewielką liczbę obserwacji nietypowych, które pozostawiono w zbiorze danych jako potencjalnie realistyczne przypadki rynkowe.
 
-dentyfikacja outlierów metodą IQR
-W celu identyfikacji wartości odstających zastosowano metodę IQR, polegającą na porównaniu obserwacji z typowym zakresem zmienności danej cechy. Analizą objęto wszystkie zmienne numeryczne, dla których obliczono procentowy udział obserwacji odstających w całym zbiorze danych. Wyniki zestawiono w tabeli, uwzględniając wyłącznie zmienne, dla których zidentyfikowano wartości odstające, przyjmując podejście diagnostyczne bez ich automatycznego usuwania.
-```{r iqr}
-# wybór zmiennych numerycznych
+### Identyfikacja obserwacji odstających 
+W kolejnym etapie przeprowadzono diagnostykę obserwacji odstających z wykorzystaniem metody IQR. Celem analizy było określenie skali występowania wartości nietypowych w poszczególnych zmiennych numerycznych oraz ocena ich potencjalnego wpływu na dalsze etapy analizy.
+```{r iqr, echo=FALSE}
 num_vars <- dane_gdansk %>% select(where(is.numeric))
 
 iqr_outliers <- num_vars %>%
@@ -377,22 +370,38 @@ kable(iqr_outliers %>%
         filter(pct_outliers!= 0),
       format = "html", digits = 2,caption = "Identyfikacja wartości odstających (IQR)",col.names = c("Zmienna", "% obserwacji odstających")) %>%
 kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-
 ```
+Zidentyfikowane obserwacje odstające nie zostały usunięte ze zbioru danych, ponieważ mogą one odzwierciedlać rzeczywiste zróżnicowanie cen i cech mieszkań na rynku nieruchomości.
 
-2.1 Braki danych W celu określenia mechanizmu braków danych przeprowadzono test Little MCAR. Wynik testu był istotny statystycznie (χ² = 2374.25, df = 569, p \< 0.001), co pozwala odrzucić hipotezę o całkowicie losowym charakterze braków (MCAR). Oznacza to, że zmienne w zbiorze zawierają braki zależne od innych informacji (MAR) lub od wartości samej zmiennej (MNAR). Braki danych nie mają więc charakteru losowego i wymagają zastosowania zaawansowanej metody imputacji, takiej jak MICE. floor, rokbudowy, czy jest winda, odleglosc od uni Z brakami danych do uzupelnienia. Type i reszta zostaje z brakami danych, bo nie oplaca sie -\> jak to uzasadnić?
+### Postępowanie z brakami danych i imputacja wielokrotna
+W przypadku wybranych zmiennych, dla których występowały braki danych, przeprowadzono procedurę imputacji wielokrotnej w celu ograniczenia utraty informacji. Przed imputacją oceniono mechanizm braków danych, a następnie zastosowano metodę MICE, dostosowując modele imputacyjne do charakteru poszczególnych zmiennych. Poprawność imputacji oceniono na podstawie diagnostyki rozkładów imputowanych wartości.
+```{r mcar_table, echo=FALSE}
+mcar_test(dane_gdansk) %>%
+  transmute(
+    `Statystyka χ²` = round(statistic, 2),
+    `Stopnie swobody` = df,
+    `Wartość p` = p.value,
+    `Liczba wzorców braków danych` = missing.patterns
+  ) %>%
+  kable(
+    format = "html",
+    caption = "Wyniki testu MCAR (Little’a)",
+    align = "c"
+  ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width = FALSE,
+    position = "center"
+  )
+```
+Wynik testu MCAR (Little’a) wskazuje na odrzucenie hipotezy o całkowicie losowym mechanizmie braków danych (p < 0,001). W związku z tym przyjęto, że braki danych można traktować jako zależne od obserwowanych zmiennych (założenie MAR) i zastosowano imputację wielokrotną metodą MICE.
 
-mice dla zmiennych numerycznych buduje model liniowy, dla kategorzycznych logitowy
-
-```{r t_NA}
-mcar_test(dane_gdansk)
+```{r tabela br danych, echo=FALSE }
 gg_miss_var(dane_gdansk)
-vis_miss(dane_gdansk)
-gg_miss_upset(dane_gdansk)
-missing_pattern(dane_gdansk)
 ```
+Wizualizacja braków danych potwierdza, że braki występują jedynie w wybranych zmiennych i mają ograniczony zakres. Rozkład braków danych jest spójny z wynikami analizy tabelarycznej i nie wskazuje na koncentrację braków w jednej lub kilku kluczowych zmiennych.
 
-```{r imp}
+```{r imp, include=FALSE}
 methods <- make.method(dane_gdansk)
 methods[] <- ""
 
@@ -418,22 +427,368 @@ imp <- mice(dane_gdansk, method = methods, predictorMatrix = pred, m = 5, maxit 
 dane_imputed <- complete(imp, 1)
 
 ```
+Imputację braków danych przeprowadzono z wykorzystaniem metody MICE (Multiple Imputation by Chained Equations). Dla zmiennych ilościowych (`floor`, `buildYear`, `collegeDistance`) zastosowano metodę predykcyjnego dopasowania średnich (PMM), natomiast dla zmiennej binarnej `hasElevator` wykorzystano regresję logistyczną. Macierz predyktorów zdefiniowano selektywnie, uwzględniając wyłącznie zmienne merytorycznie powiązane z imputowanymi cechami. W dalszej analizie wykorzystano kompletny zbiór danych po imputacji (`dane_imputed`).
 
-```{r imp_gr}
-plot(imp)
-
+```{r imp_gr, echo=FALSE}
 densityplot(imp, ~ floor)
-densityplot(imp, ~ buildYear)
-densityplot(imp, ~ collegeDistance)
-
-# 5) Relacje między zmiennymi (czy imputacja nie psuje logiki)
-xyplot(imp, floor ~ floorCount)
-
-# 6) Stripplot (czy imputacje nie „przyklejają się” do jednej wartości)
-# Dobry do wykrywania degeneracji imputacji
-stripplot(imp, floor ~ .imp, pch = 20, cex = 1)
-stripplot(imp, buildYear ~ .imp, pch = 20, cex = 1)
-stripplot(imp, collegeDistance ~ .imp, pch = 20, cex = 1)
-
-
 ```
+Wykres przedstawia porównanie rozkładów wartości obserwowanych i imputowanych zmiennej piętro. Rozkłady po imputacji zachowują strukturę danych pierwotnych, bez widocznej koncentracji imputowanych wartości w pojedynczych punktach ani przesunięcia zakresu zmienności.
+
+```{r imp 2, echo=FALSE}
+densityplot(imp, ~ buildYear)
+```
+Wykres gęstości dla zmiennej rok budowy wskazuje, że imputowane wartości są zgodne z rozkładem obserwowanych danych. Nie zaobserwowano sztucznego wygładzenia ani generowania nierealistycznych wartości, co świadczy o poprawnym dopasowaniu procedury imputacji.
+
+```{r imp3, echo=FALSE}
+densityplot(imp, ~ collegeDistance)
+```
+Porównanie rozkładów zmiennej odległość do uczelni pokazuje, że imputacja nie zniekształca charakteru danych przestrzennych. Rozkłady wartości imputowanych mieszczą się w zakresie danych obserwowanych i odzwierciedlają ich rzeczywistą zmienność.
+
+## Analiza esploracyjna danych 
+W niniejszym rozdziale przeprowadzono analizę eksploracyjną danych, koncentrując się na wizualizacji zależności pomiędzy ceną mieszkań a ich cechami ilościowymi, jakościowymi oraz lokalizacyjnymi, w tym rozmieszczeniu przestrzennym ofert.
+
+### Analiza opisowa zmiennych ilościowych i dyskretnych
+W niniejszym podrozdziale przedstawiono analizę opisową zmiennych ilościowych i dyskretnych wykorzystanych w dalszych etapach badania. Zaprezentowano podstawowe miary położenia, zróżnicowania oraz zakresy zmienności, co pozwala scharakteryzować strukturę danych przed przejściem do analizy wizualnej i wnioskowania statystycznego.
+
+```{r zm dyskretne, echo=FALSE}
+tab_disc <- dane_imputed %>%
+  select(c("rooms", "floor", "floorCount", "buildYear", "poiCount")) %>%
+  skim()%>%
+  # dplyr::filter(skim_type == "numeric") %>%
+  dplyr::select(
+    zmienna = skim_variable,
+    complete_rate,
+    mean = `numeric.mean`,
+    sd   = `numeric.sd`,
+    min  = `numeric.p0`,
+    q1   = `numeric.p25`,
+    median = `numeric.p50`,
+    q3   = `numeric.p75`,
+    max  = `numeric.p100`
+  ) %>%
+  mutate(complete_rate = round(complete_rate * 100, 1), zmienna = label_vars(zmienna))
+kable(tab_disc, format = "html", digits = 2, caption = "Statystyki opisowe (zmienne dyscretne)", col.names = c("Zmienna", "% kompletności", "Średnia", "Odch. std.", "Min", "Q1", "Mediana", "Q3", "Max")) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+Tabela prezentuje statystyki opisowe zmiennych dyskretnych, które cechują się niemal pełną kompletnością danych. Liczba pokoi i piętro mają niewielką zmienność i skoncentrowane rozkłady wokół wartości typowych dla mieszkań miejskich. Liczba kondygnacji oraz rok budowy wykazują większe zróżnicowanie, co odzwierciedla heterogeniczność zabudowy. Zmienna opisująca liczbę punktów POI w pobliżu charakteryzuje się bardzo dużym rozrzutem i prawostronną asymetrią, wskazując na silne zróżnicowanie lokalizacyjne ofert.
+
+
+```{r zm ciagłe, echo=FALSE}
+cont_vars <- c("squareMeters","price","price_m2")
+tab_num <- dane_imputed %>%
+  select(all_of(cont_vars))%>%
+  skim()%>%
+  # dplyr::filter(skim_type == "numeric") %>%
+  dplyr::select(
+    zmienna = skim_variable,
+    complete_rate,
+    mean = `numeric.mean`,
+    sd   = `numeric.sd`,
+    min  = `numeric.p0`,
+    q1   = `numeric.p25`,
+    median = `numeric.p50`,
+    q3   = `numeric.p75`,
+    max  = `numeric.p100`
+  ) %>%
+  mutate(complete_rate = round(complete_rate * 100, 1), zmienna = label_vars(zmienna))
+kable(tab_num, format = "html", digits = 2, caption = "Statystyki opisowe (zmienne numeryczne)", col.names = c("Zmienna", "% kompletności", "Średnia", "Odch. std.", "Min", "Q1", "Mediana", "Q3", "Max")) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+Tabela przedstawia statystyki opisowe zmiennych ilościowych i dyskretnych, dla których nie występują braki danych. Rozkład powierzchni mieszkań jest umiarkowanie zróżnicowany i prawostronnie asymetryczny. Ceny całkowite oraz ceny za metr kwadratowy charakteryzują się dużą zmiennością i wyraźną prawostronną asymetrią, co wskazuje na istotny wpływ drogich ofert na wartości średnie i uzasadnia dalszą analizę z wykorzystaniem miar pozycyjnych.
+
+
+
+```{r zm odleglosciowe, echo=FALSE}
+dist_vars <- c("centreDistance","schoolDistance","clinicDistance","postOfficeDistance",
+               "kindergartenDistance","restaurantDistance","collegeDistance","pharmacyDistance")
+tab_od <- dane_imputed %>%
+  select(all_of(dist_vars)) %>%
+  skim()%>%
+  # dplyr::filter(skim_type == "numeric") %>%
+  dplyr::select(
+    zmienna = skim_variable,
+    complete_rate,
+    mean = `numeric.mean`,
+    sd   = `numeric.sd`,
+    min  = `numeric.p0`,
+    q1   = `numeric.p25`,
+    median = `numeric.p50`,
+    q3   = `numeric.p75`,
+    max  = `numeric.p100`
+  ) %>%
+  mutate(complete_rate = round(complete_rate * 100, 1), zmienna = label_vars(zmienna))
+kable(tab_od, format = "html", digits = 2, caption = "Statystyki opisowe (zmienne odlegościowe)", col.names = c("Zmienna", "% kompletności", "Średnia", "Odch. std.", "Min", "Q1", "Mediana", "Q3", "Max")) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+Tabela przedstawia statystyki opisowe zmiennych odległościowych, które charakteryzują się niemal pełną kompletnością danych. Odległość od centrum wykazuje największe zróżnicowanie spośród analizowanych zmiennych, co odzwierciedla przestrzenne rozproszenie ofert. Odległości do podstawowych usług i obiektów użyteczności publicznej są relatywnie niewielkie i skoncentrowane wokół niskich wartości, jednak w większości przypadków widoczna jest prawostronna asymetria rozkładów, wskazująca na obecność ofert położonych znacznie dalej od infrastruktury.
+
+
+```{r zm kategoryczne, include=FALSE}
+cat_vars <- c(
+  "type","ownership","hasParkingSpace","hasBalcony",
+  "hasElevator","hasSecurity","hasStorageRoom"
+)
+tab_cat_dist <-dane_imputed %>%
+  select(all_of(cat_vars)) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "category") %>%
+  filter(!is.na(category)) %>%
+  count(variable, category, name = "n") %>%
+  group_by(variable) %>%
+  mutate(pct = round(n / sum(n) * 100, 1)) %>%
+  arrange(variable, desc(n)) %>%
+  ungroup()
+```
+
+### Analiza opisowa zmiennych jakościowych
+W niniejszym podrozdziale przeprowadzono analizę zmiennych jakościowych opisujących cechy techniczne mieszkań oraz elementy ich wyposażenia. Celem tej części analizy eksploracyjnej jest ocena kompletności danych, liczby kategorii oraz struktury częstości występowania poszczególnych cech, a także identyfikacja podstawowych zależności pomiędzy wybranymi zmiennymi jakościowymi.
+
+
+```{r sdfghjkl, echo=FALSE}
+cat_vars <- c(
+  "type","ownership","hasParkingSpace","hasBalcony",
+  "hasElevator","hasSecurity","hasStorageRoom"
+)
+
+tab_cat_meta <- dane_imputed %>%
+  select(all_of(cat_vars)) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "val") %>%
+  group_by(variable) %>%
+  summarise(
+    liczba_obserwacji = n(),
+    liczba_brakow = sum(is.na(val)),
+    `%_kompletnosci` = round((1 - liczba_brakow / liczba_obserwacji) * 100, 1),
+    liczba_kategorii = n_distinct(val, na.rm = TRUE),
+    .groups = "drop"
+  )
+kable(tab_cat_meta, format = "html", digits = 2, caption = "Statystyki opisowe zmiennych jakościowych", col.names = c("Zmienna", "Liczba obserwacji", "Liczba braków", "% kompletności", "Liczba kategorii")) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+Tabela przedstawia liczbę obserwacji, braki danych, poziom kompletności oraz liczbę kategorii dla zmiennych jakościowych. Zmienne cechują się wysoką kompletnością, a liczba kategorii jest zgodna z ich charakterem, co wskazuje na dobrą jakość danych.
+
+```{r waerstdyfug, echo=FALSE}
+bin_vars <- c("hasParkingSpace","hasBalcony","hasElevator","hasSecurity","hasStorageRoom")
+tab_bin <- dane_imputed %>%
+  select(all_of(bin_vars)) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "val") %>%
+  mutate(val = tolower(as.character(val))) %>%
+  group_by(variable) %>%
+  summarise(
+    n = n(),
+    missing = sum(is.na(val)),
+    n_nonmiss = n - missing,
+    yes_n = sum(val %in% c("yes","1","true","t"), na.rm = TRUE),
+    yes_pct = round(yes_n / n_nonmiss * 100, 1),
+    .groups = "drop"
+  )
+kable(tab_bin, format = "html", digits = 2, caption = "Procent 'tak' w zmiennych binarnych", col.names = c("Zmienna", "Liczba obserwacji", "Liczba braków", "Liczba niebraków", "Liczba 'tak'", "% 'tak'")) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+Zestawienie prezentuje udział odpowiedzi pozytywnych w zmiennych binarnych opisujących wyposażenie mieszkań. Widoczne zróżnicowanie częstości występowania poszczególnych udogodnień wskazuje na ich potencjalną rolę w dalszej analizie ofert.
+
+```{r balkon x winda, echo=FALSE}
+tab_cont <- dane_imputed %>%
+  select(hasBalcony, hasElevator) %>%
+  filter(!is.na(hasBalcony), !is.na(hasElevator)) %>%
+  count(hasBalcony, hasElevator, name = "n") %>%
+  group_by(hasBalcony) %>%
+  mutate(pct_row = round(n / sum(n) * 100, 1)) %>%
+  ungroup()
+tab_matrix <- table(dane_imputed$hasBalcony, dane_imputed$hasElevator)
+chi <- chisq.test(tab_matrix)
+chi
+kable(tab_cont, format = "html", digits = 2, caption = "Tabela kontyngencji: Balkon vs Winda", col.names = c("Balkon", "Winda", "Liczba obserwacji", "% w wierszu")) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+Tabela kontyngencji oraz wynik testu chi-kwadrat wskazują na statystyczną zależność pomiędzy występowaniem balkonu i windy, co sugeruje współwystępowanie tych cech w analizowanych ofertach.
+
+###Wizualizacja zależności cen od cech mieszkań 
+W niniejszym podrozdziale przedstawiono wizualną analizę zależności pomiędzy cenami mieszkań a wybranymi cechami strukturalnymi, lokalizacyjnymi oraz elementami wyposażenia. Celem tej części analizy eksploracyjnej jest identyfikacja ogólnych wzorców i zróżnicowań cenowych, które mogą stanowić podstawę do dalszych analiz statystycznych i modelowych.
+```{r Cena mieszkań a liczba pokoi, echo=FALSE}
+ggplot(dane_imputed, aes(x = factor(rooms), y = price)) +
+  geom_boxplot(fill = "#9ecae1") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Cena mieszkań a liczba pokoi",
+    x = "Liczba pokoi",
+    y = "Cena (PLN)"
+  ) +
+  theme_minimal()
+```
+Wykres wskazuje na wzrost mediany ceny mieszkań wraz ze wzrostem liczby pokoi, przy jednoczesnym zwiększaniu się zróżnicowania cen w wyższych kategoriach. Widoczna jest również obecność obserwacji odstających, szczególnie dla mieszkań o większej liczbie pokoi.
+
+```{r Rozkład cen mieszkań według przedziałów metrażu (binning metrażu), echo=FALSE}
+dane_imputed %>%
+  mutate(
+    size_bin = cut(
+      squareMeters,
+      breaks = c(0, 30, 50, 70, 90, 120, Inf),
+      labels = c("<30","30–50","50–70","70–90","90–120","120+")
+    )
+  ) %>%
+  ggplot(aes(x = size_bin, y = price)) +
+  geom_boxplot(fill = "#9ecae1") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Rozkład cen mieszkań według przedziałów metrażu",
+    x = "Metraż [m²]",
+    y = "Cena [PLN]"
+  ) +
+  theme_minimal()
+```
+Ceny mieszkań rosną wraz z przechodzeniem do wyższych przedziałów metrażu, przy czym rozkłady w poszczególnych grupach wykazują rosnącą zmienność. Największe zróżnicowanie cen obserwowane jest dla mieszkań o dużej powierzchni.
+
+```{r Cena za m² vs odległość od centrum (binning odległości), echo=FALSE}
+dane_imputed %>%
+  mutate(
+    centre_bin = cut(
+      centreDistance,
+      breaks = c(0, 1, 3, 5, 8, Inf),
+      labels = c("≤1 km","1–3","3–5","5–8",">8")
+    )
+  ) %>%
+  ggplot(aes(x = centre_bin, y = price_m2)) +
+  geom_boxplot(fill = "#c7e9c0") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Cena za m² w zależności od odległości od centrum",
+    x = "Odległość od centrum",
+    y = "Cena za m² [PLN]"
+  ) +
+  theme_minimal()
+```
+Wykres pokazuje wyraźny spadek mediany ceny za metr kwadratowy wraz ze wzrostem odległości od centrum miasta. Jednocześnie bliższe lokalizacje charakteryzują się większym rozrzutem cen, co sugeruje większą heterogeniczność ofert w centralnych obszarach.
+
+```{r Cena za m² vs piętro (binning piętra), z podziałem na windę (fill + dodge), echo=FALSE}
+dane_imputed %>%
+  mutate(
+    floor_bin = cut(floor, breaks = c(-Inf,1,3,5,10,Inf),
+                    labels = c("1","2–3","4–5","6–10","11+"))
+  ) %>%
+  filter(hasElevator %in% c("yes","no")) %>%
+  ggplot(aes(x = floor_bin, y = price_m2, fill = hasElevator)) +
+  geom_boxplot(position = position_dodge(width = 0.8)) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Znaczenie windy w zależności od piętra",
+    x = "Piętro",
+    y = "Cena za m² [PLN]",
+    fill = "Winda"
+  ) +
+  theme_minimal()
+```
+Cena za metr kwadratowy rośnie wraz z numerem piętra, szczególnie w budynkach wyposażonych w windę. Różnice pomiędzy lokalami z windą i bez windy stają się bardziej widoczne na wyższych kondygnacjach.
+
+```{r Rozkład ceny za m² dla balkonu vs braku balkonu, echo=FALSE}
+ggplot(dane_imputed, aes(x = hasBalcony, y = price_m2)) +
+  geom_violin(fill = "#9ecae1", alpha = 0.7, trim = TRUE) +
+  geom_boxplot(width = 0.1, fill = "white") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Rozkład ceny za m² – balkon vs brak balkonu",
+    x = "Balkon",
+    y = "Cena za m² [PLN]"
+  ) +
+  theme_minimal()
+```
+Mieszkania z balkonem charakteryzują się wyższą medianą ceny za metr kwadratowy w porównaniu do lokali bez balkonu. Rozkłady wskazują również na większą zmienność cen w grupie mieszkań z balkonem.
+
+```{r ozkładu ceny za m² względem odległości od centrum, echo=FALSE}
+dane_imputed %>%
+  mutate(
+    centre_bin = cut(
+      centreDistance,
+      breaks = c(0, 1, 3, 5, 8, Inf),
+      labels = c("≤1 km","1–3","3–5","5–8",">8")
+    )
+  ) %>%
+  ggplot(aes(x = price_m2, y = centre_bin, fill = centre_bin)) +
+  geom_density_ridges(alpha = 0.7, show.legend = FALSE) +
+  scale_x_continuous(labels = scales::comma) +
+  labs(
+    title = "Rozkład ceny za m² w zależności od odległości od centrum",
+    x = "Cena za m² [PLN]",
+    y = "Odległość od centrum"
+  ) +
+  theme_minimal()
+```
+Rozkłady gęstości potwierdzają przesuwanie się rozkładu cen za metr kwadratowy w stronę niższych wartości wraz ze wzrostem odległości od centrum. Jednocześnie dla lokalizacji centralnych obserwowany jest szerszy zakres cen.
+
+```{r Mediana ceny za m² według liczby pokoi i odległości od centrum, echo=FALSE}
+heat_data <- dane_imputed %>%
+  mutate(
+    centre_bin = cut(centreDistance, c(0,1,3,5,8,Inf)),
+    rooms = factor(rooms)
+  ) %>%
+  group_by(centre_bin, rooms) %>%
+  summarise(median = median(price_m2), .groups = "drop")
+ggplot(heat_data, aes(x = rooms, y = centre_bin, fill = median)) +
+  geom_tile() +
+  scale_fill_viridis_c(labels = scales::comma) +
+  labs(
+    title = "Mediana ceny za m² według liczby pokoi i odległości od centrum",
+    x = "Liczba pokoi",
+    y = "Odległość od centrum",
+    fill = "Mediana ceny"
+  ) +
+  theme_minimal()
+```
+Mapa cieplna pokazuje, że najwyższe mediany cen za metr kwadratowy występują dla mieszkań położonych najbliżej centrum, niezależnie od liczby pokoi. Wraz ze wzrostem odległości od centrum mediany systematycznie maleją, a wpływ liczby pokoi staje się mniej wyraźny.
+
+
+### Analiza przestrzenna rynku mieszkaniowego 
+W niniejszym podrozdziale przeprowadzono analizę przestrzenną rynku mieszkaniowego z wykorzystaniem współrzędnych geograficznych ofert. Analiza ta ma na celu rozpoznanie rozmieszczenia ofert w przestrzeni miejskiej, identyfikację obszarów koncentracji ogłoszeń oraz wstępną ocenę przestrzennego zróżnicowania cen za metr kwadratowy. Wizualizacje mapowe pozwalają na uzupełnienie wcześniejszych analiz opisowych i lepsze uchwycenie zależności przestrzennych niewidocznych w klasycznych zestawieniach tabelarycznych.
+```{r Mapa punktowa - cena za m2, echo=FALSE}
+leaflet(dane_imputed) %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addCircleMarkers(
+    lng = ~longitude,
+    lat = ~latitude,
+    radius = 3,
+    color = ~colorNumeric("viridis", price_m2)(price_m2),
+    stroke = FALSE,
+    fillOpacity = 0.6,
+    popup = ~paste0("Cena/m²: ", scales::comma(price_m2), " PLN")
+  )
+```
+Mapa punktowa przedstawia lokalizację poszczególnych ofert mieszkaniowych wraz z odpowiadającą im ceną za metr kwadratowy zakodowaną kolorem. Widoczne jest wyraźne zróżnicowanie przestrzenne cen, z obszarami skupiającymi oferty o wyższych oraz niższych poziomach cen, co wskazuje na istotną rolę lokalizacji w kształtowaniu wartości nieruchomości.
+
+```{r mapa punktowa z klastrowaniem, echo=FALSE}
+pal <- colorNumeric("viridis", domain = dane_imputed$price_m2, na.color = "transparent")
+
+leaflet(dane_imputed) %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addCircleMarkers(
+    lng = ~longitude, lat = ~latitude,
+    radius = 3,
+    stroke = FALSE,
+    fillOpacity = 0.6,
+    color = ~pal(price_m2),
+    clusterOptions = markerClusterOptions()
+  ) %>%
+  addLegend("bottomright", pal = pal, values = ~price_m2,
+            title = "Cena za m² [PLN]", labFormat = labelFormat())
+```
+Zastosowanie mechanizmu klastrowania markerów umożliwia czytelne przedstawienie rozmieszczenia ofert w obszarach o dużym zagęszczeniu punktów. Wizualizacja ta pozwala na łatwiejszą identyfikację rejonów o wysokiej liczbie ogłoszeń oraz ocenę, czy wysokie i niskie ceny występują w sposób przestrzennie skupiony.
+
+```{r heatmapa gestosci ofert, echo=FALSE}
+leaflet(dane_imputed) %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addHeatmap(
+    lng = ~longitude, lat = ~latitude,
+    blur = 20, radius = 15,
+    max = 1
+  )
+```
+Mapa gęstości ofert prezentuje przestrzenną koncentrację ogłoszeń mieszkaniowych bez uwzględniania poziomu cen. Najciemniejsze obszary wskazują rejony o największej liczbie ofert, co może odzwierciedlać intensywność zabudowy mieszkaniowej lub większą aktywność rynku nieruchomości w tych lokalizacjach.
+
+```{r heatmapa "gdzie drogo", echo=FALSE}
+leaflet(dane_imputed) %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addHeatmap(
+    lng = ~longitude, lat = ~latitude,
+    intensity = ~price_m2,
+    blur = 0.1, radius = 15,
+    max = max(dane_imputed$price_m2, na.rm = TRUE)
+  )
+```
+Mapa ciepła ważona ceną za metr kwadratowy łączy informacje o lokalizacji ofert z poziomem cen, umożliwiając identyfikację obszarów charakteryzujących się wysokimi wartościami cenowymi. W przeciwieństwie do mapy gęstości ofert, wizualizacja ta akcentuje przestrzenne skupiska drogich nieruchomości, niezależnie od liczby występujących tam ogłoszeń.
