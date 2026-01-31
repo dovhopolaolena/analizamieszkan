@@ -19,8 +19,13 @@ library(leaflet)
 library(leaflet.extras)
 library(tidyr)
 library(gt)
+library(ggstatsplot)
+library(ggcorrplot)
 library(rstatix)
-library(ggcorplot)
+library(modelsummary)
+library(car)
+library(sandwich)
+library(lmtest)
 ```
 
 SPRAWDZANIE CZY SA DUPLICATY, FILTRACJA DANYCH PO MIASTU
@@ -63,7 +68,9 @@ var_labels <- c(
   price_m2 = "Cena za metr kwadratowy [PLN/m²]"
 )
 var_labels <- as.list(var_labels)
-label_vars <- function(x) {recode(x, !!!var_labels)}
+label_vars <- function(x) {
+  sapply(as.character(x), function(v) var_labels[[v]])
+}
 
 # mapa mieszka -> NIE WIEM W KTÓRYM MOMENCIE NAJLEPIEJ JĄ DODAĆ
 leaflet(dane_gdansk) |>
@@ -377,7 +384,7 @@ tab_bin <- dane_imputed %>%
 tab_bin_final <- tab_bin %>% select(variable, n_nonmiss, yes_n, yes_pct)
 
 tab_cat_meta <- tab_cat_meta %>% mutate(variable = label_vars(variable))
-tab_bin      <- tab_bin      %>% mutate(variable = label_vars(variable))
+tab_bin <- tab_bin_final %>% mutate(variable = label_vars(variable))
 
 kable(tab_cat_meta, format = "html", digits = 2, caption = "Statystyki opisowe zmiennych jakościowych", col.names = c("Zmienna", "Liczba obserwacji", "Liczba braków", "% kompletności", "Liczba kategorii")) %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
@@ -453,7 +460,6 @@ kable(tab_od, format = "html", digits = 2, caption = "Statystyki opisowe (zmienn
 
 ```{r testowanie hipotez}
 # „Kluczowe zmienne wykorzystywane w analizie wnioskowania statystycznego nie zawierały braków danych, co pozwoliło na przeprowadzenie testów bez dodatkowej redukcji próby
-
 # HIPOTEZA 1 i 4 -> korelacje rang Spearmana
 h1_results <- dane_imputed %>%
   cor_test(centreDistance, c(price, price_m2), method = "spearman")
@@ -641,11 +647,83 @@ kable(
 ) %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed")) %>%
   column_spec(2:4, bold = TRUE)
+kable(
+  h3_pub,
+  format = "html",
+  caption = "H3: Zależność odległości od centrum i ceny za m² w grupach standardu (korelacja Spearmana)",
+  col.names = c(
+    "Cecha",
+    "ρ (bez)",
+    "ρ (z)",
+    "p (bez)",
+    "p (z)"
+  ),
+  digits = 2
+) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover")) %>%
+  column_spec(1, bold = TRUE)
 
 
 ```
 
 
+```{r}
+df <- dane_imputed %>%
+  mutate(
+    ln_price_m2 = log(price_m2),
+    ln_centre = log1p(centreDistance),   
+    ln_poi = log1p(poiCount),
+    ln_area = log(squareMeters),
+    rooms = factor(rooms),
+    type = factor(type),
+    ownership = factor(ownership),
+    hasElevator     = factor(hasElevator, levels = c("no","yes")),
+    hasSecurity     = factor(hasSecurity, levels = c("no","yes")),
+    hasStorageRoom  = factor(hasStorageRoom, levels = c("no","yes")),
+    hasBalcony      = factor(hasBalcony, levels = c("no","yes")),
+    hasParkingSpace = factor(hasParkingSpace, levels = c("no","yes"))) %>%
+  filter(
+    is.finite(ln_price_m2),
+    is.finite(ln_centre),
+    is.finite(ln_area),
+    !is.na(buildYear),
+    !is.na(floor),
+    !is.na(floorCount))
+
+
+m0 <- lm(ln_price_m2 ~ ln_centre, data = df)
+summary(m0)
+coeftest(m0, vcov = vcovHC(m_final, "HC1"))
+
+m1 <- lm(ln_price_m2 ~ ln_centre + ln_area + rooms +buildYear + floor + floorCount,data = df)
+summary(m1)
+coeftest(m1, vcov = vcovHC(m_final, "HC1"))
+vif(m1)
+
+m2 <- lm(ln_price_m2 ~ ln_centre + ln_area + rooms +buildYear + floor + floorCount +ln_poi + schoolDistance + restaurantDistance,data =df)
+summary(m2)
+coeftest(m2, vcov = vcovHC(m_final, "HC1"))
+vif(m2)
+
+m3 <- lm(ln_price_m2 ~ ln_centre + ln_area + rooms +buildYear + floor + floorCount +ln_poi + schoolDistance + restaurantDistance+hasElevator + hasBalcony + hasSecurity +hasStorageRoom + hasParkingSpace,data = df)
+summary(m3)
+coeftest(m3, vcov = vcovHC(m_final, "HC1"))
+vif(m3)
+
+m4 <- lm(ln_price_m2 ~ ln_centre + ln_area + rooms +buildYear + floor + floorCount +ln_poi + schoolDistance + restaurantDistance+hasElevator + hasSecurity + hasStorageRoom +ln_centre:hasElevator +ln_centre:hasStorageRoom,data = df)
+summary(m4)
+coeftest(m4, vcov = vcovHC(m4, type = "HC1"))
+bptest(m4)
+vif(m4)
+
+m_final <- lm( ln_price_m2 ~ ln_centre +ln_area +buildYear +floor +ln_poi +hasElevator +hasStorageRoom+ ln_centre:hasElevator+ln_centre:hasStorageRoom,data = df)
+summary(m_final)
+coeftest(m_final, vcov = vcovHC(m_final, "HC1"))
+vif(m_final)
+
+
+
+```
 
 
 
