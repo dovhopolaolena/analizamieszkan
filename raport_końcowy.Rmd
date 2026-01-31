@@ -9,6 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+<<<<<<< HEAD
 ```{r biblioteki, include=FALSE}
 library(tidyverse)
 library(validate)
@@ -85,3 +86,5 @@ kable(
 
 
 
+=======
+>>>>>>> 718ba29 (dodanie do raportu koncowego bibliotek, wprowadzenie i tabele z opisem danych)
