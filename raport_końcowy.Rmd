@@ -36,7 +36,7 @@ library(knitr)
 
 Rynek nieruchomości mieszkaniowych w dużych miastach charakteryzuje się znaczną złożonością oraz silnym zróżnicowaniem cen i cech lokali. Miasto Gdańsk, jako jeden z głównych ośrodków miejskich w Polsce, stanowi interesujący obszar badań ze względu na dynamiczny rozwój urbanistyczny, zróżnicowaną strukturę dzielnic oraz istotny wpływ czynników lokalizacyjnych na ceny mieszkań.
 
-Celem projektu jest analiza rynku mieszkań na obszarze miasta Gdańsk z wykorzystaniem narzędzi i metod analizy danych dostępnych w środowisku RStudio. Badanie obejmuje eksploracyjną analizę danych, identyfikację zależności pomiędzy wybranymi cechami mieszkań (takimi jak metraż, liczba pokoi, lokalizacja czy odległość od centrum) oraz ocenę ich wpływu na poziom cen. Szczególną uwagę poświęcono analizie rozkładów zmiennych, zależności korelacyjnych oraz wizualizacji danych przestrzennych.
+Celem projektu jest analiza rynku mieszkań na obszarze miasta Gdańsk z wykorzystaniem narzędzi i metod analizy danych dostępnych w środowisku RStudio, żeby odpowiedzieć na główne pytania badawcze. Badanie obejmuje eksploracyjną analizę danych, identyfikację zależności pomiędzy wybranymi cechami mieszkań (takimi jak metraż, liczba pokoi, lokalizacja czy odległość od centrum) oraz ocenę ich wpływu na poziom cen. Szczególną uwagę poświęcono analizie rozkładów zmiennych, zależności korelacyjnych oraz wizualizacji danych przestrzennych.
 
 Projekt realizowany jest w ramach przedmiotu „Analiza danych w R” i ma na celu praktyczne zastosowanie poznanych metod statystycznych oraz narzędzi programistycznych języka R. Uzyskane wyniki pozwalają na lepsze zrozumienie mechanizmów kształtujących ceny mieszkań w Gdańsku oraz stanowią podstawę do dalszych, bardziej zaawansowanych analiz ekonometrycznych i predykcyjnych.
 
@@ -79,9 +79,16 @@ kable(
     full_width = FALSE
   )
 ```
+### Pytania badawcze 
+Celem analizy jest ocena wpływu lokalizacji oraz standardu technicznego mieszkania na poziom cen na rynku mieszkaniowym w Gdańsku. W szczególności badanie koncentruje się na zależności pomiędzy odległością mieszkania od centrum miasta a ceną oraz sprawdzeniu, czy wybrane cechy standardu technicznego modyfikują tę zależność.
+W związku z tym sformułowano następujące pytania badawcze:
+  • Czy wzrost odległości mieszkania od centrum miasta wiąże się ze spadkiem cen mieszkań oraz cen za metr kwadratowy?
+  • Czy mieszkania o wyższym standardzie technicznym osiągają wyższe ceny niż mieszkania pozbawione określonych udogodnień?
+  • Czy siła i kierunek zależności pomiędzy odległością od centrum a ceną za metr kwadratowy różnią się w zależności od standardu technicznego mieszkania?
+  • Czy metraż mieszkania jest dodatnio związany z ceną całkowitą oraz ujemnie związany z ceną za metr kwadratowy?
 
 ##  Przygotowanie danych 
-### Wstępne przetwarzanie danych 
+### Wstępne przetwarzanie i selekcja danych
 W pierwszym kroku wczytane dane są ograniczane wyłącznie do obserwacji dotyczących miasta Gdańsk, dzięki czemu dalsza analiza koncentruje się na jednym, spójnym rynku lokalnym.
 Natępnie realizuje się podstawowy pipeline przygotowania danych do analizy cen mieszkań w Gdańsku: po wczytaniu i przefiltrowaniu danych do jednego miasta wykonywane jest wstępne czyszczenie obejmujące kontrolę duplikatów oraz selekcję zmiennych istotnych analitycznie, następnie standaryzowane są typy danych poprzez konwersję zmiennych kategorycznych do faktorów, a na końcu tworzona jest zmienna ceny za metr kwadratowy, umożliwiająca porównywanie ofert niezależnie od ich metrażu.
 
@@ -139,7 +146,7 @@ leaflet(dane_gdansk) |>
   )
 ```
 
-### Kontrola jakości i spójności danych 
+### Analiza braków danych
 W tym kroku w pierwszej kolejności sprawdza się występowania braków danych, żeby wiedzieć gdzie w regułach może dopuśćić się wystapowanie NA.
 ```{r braki danych, echo=FALSE}
 miss_var_summary(dane_gdansk) |>
@@ -342,4 +349,91 @@ tab_soft |>
     table.font.size = px(12),
     data_row.padding = px(3)
   )
+```
+
+dentyfikacja outlierów metodą IQR
+W celu identyfikacji wartości odstających zastosowano metodę IQR, polegającą na porównaniu obserwacji z typowym zakresem zmienności danej cechy. Analizą objęto wszystkie zmienne numeryczne, dla których obliczono procentowy udział obserwacji odstających w całym zbiorze danych. Wyniki zestawiono w tabeli, uwzględniając wyłącznie zmienne, dla których zidentyfikowano wartości odstające, przyjmując podejście diagnostyczne bez ich automatycznego usuwania.
+```{r iqr}
+# wybór zmiennych numerycznych
+num_vars <- dane_gdansk %>% select(where(is.numeric))
+
+iqr_outliers <- num_vars %>%
+  summarise(across(
+    everything(),
+    ~ {
+      q1 <- quantile(.x, 0.25, na.rm = TRUE)
+      q3 <- quantile(.x, 0.75, na.rm = TRUE)
+      iqr <- IQR(.x, na.rm = TRUE)
+      mean(.x < (q1 - 1.5 * iqr) | .x > (q3 + 1.5 * iqr), na.rm = TRUE) * 100})) %>%
+  pivot_longer(
+    everything(),
+    names_to = "variable",
+    values_to = "pct_outliers") %>%
+  arrange(desc(pct_outliers))
+
+kable(iqr_outliers %>%
+        mutate(variable = label_vars(variable))%>%
+        mutate(pct_outliers = round(pct_outliers, 2)) %>%
+        filter(pct_outliers!= 0),
+      format = "html", digits = 2,caption = "Identyfikacja wartości odstających (IQR)",col.names = c("Zmienna", "% obserwacji odstających")) %>%
+kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+```
+
+2.1 Braki danych W celu określenia mechanizmu braków danych przeprowadzono test Little MCAR. Wynik testu był istotny statystycznie (χ² = 2374.25, df = 569, p \< 0.001), co pozwala odrzucić hipotezę o całkowicie losowym charakterze braków (MCAR). Oznacza to, że zmienne w zbiorze zawierają braki zależne od innych informacji (MAR) lub od wartości samej zmiennej (MNAR). Braki danych nie mają więc charakteru losowego i wymagają zastosowania zaawansowanej metody imputacji, takiej jak MICE. floor, rokbudowy, czy jest winda, odleglosc od uni Z brakami danych do uzupelnienia. Type i reszta zostaje z brakami danych, bo nie oplaca sie -\> jak to uzasadnić?
+
+mice dla zmiennych numerycznych buduje model liniowy, dla kategorzycznych logitowy
+
+```{r t_NA}
+mcar_test(dane_gdansk)
+gg_miss_var(dane_gdansk)
+vis_miss(dane_gdansk)
+gg_miss_upset(dane_gdansk)
+missing_pattern(dane_gdansk)
+```
+
+```{r imp}
+methods <- make.method(dane_gdansk)
+methods[] <- ""
+
+methods["floor"]           <- "pmm"
+methods["buildYear"]       <- "pmm"
+methods["hasElevator"]     <- "logreg"
+methods["collegeDistance"] <- "pmm"
+methods["type"]            <- ""   
+
+pred <- make.predictorMatrix(dane_gdansk)
+pred[,] <- 0
+diag(pred) <- 0
+
+pred["floor", c("floorCount","rooms","squareMeters","buildYear","hasElevator","poiCount")] <- 1
+pred["buildYear", c("floorCount","centreDistance","poiCount","squareMeters","rooms")] <- 1
+pred["hasElevator", c("floorCount","buildYear","floor")] <- 1
+pred["collegeDistance", c("centreDistance","poiCount","latitude","longitude")] <- 1
+pred[, "type"] <- 0
+pred["type", ] <- 0
+
+set.seed(123)
+imp <- mice(dane_gdansk, method = methods, predictorMatrix = pred, m = 5, maxit = 20, ridge = 1e-5)
+dane_imputed <- complete(imp, 1)
+
+```
+
+```{r imp_gr}
+plot(imp)
+
+densityplot(imp, ~ floor)
+densityplot(imp, ~ buildYear)
+densityplot(imp, ~ collegeDistance)
+
+# 5) Relacje między zmiennymi (czy imputacja nie psuje logiki)
+xyplot(imp, floor ~ floorCount)
+
+# 6) Stripplot (czy imputacje nie „przyklejają się” do jednej wartości)
+# Dobry do wykrywania degeneracji imputacji
+stripplot(imp, floor ~ .imp, pch = 20, cex = 1)
+stripplot(imp, buildYear ~ .imp, pch = 20, cex = 1)
+stripplot(imp, collegeDistance ~ .imp, pch = 20, cex = 1)
+
+
 ```
