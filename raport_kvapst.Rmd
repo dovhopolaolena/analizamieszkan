@@ -19,6 +19,8 @@ library(leaflet)
 library(leaflet.extras)
 library(tidyr)
 library(gt)
+library(rstatix)
+library(ggcorplot)
 ```
 
 SPRAWDZANIE CZY SA DUPLICATY, FILTRACJA DANYCH PO MIASTU
@@ -83,7 +85,7 @@ Metraż mieszkania istotnie różnicuje poziom cen na rynku nieruchomości, zar�
 
 sPRAWDZANIE NA NIE SPÓJNOŚCI DANYCH I BLEDOW LOGICZNYCH Wyniki walidacji reguł twardych nie wykazały żadnych naruszeń spójności logicznej ani dziedzinowej. W związku z brakiem przypadków niespełniających przyjętych warunków, szczegółowe zestawienie tabelaryczne reguł walidacyjnych pominięto, ograniczając prezentację do opisu procedury. Przed imputacją przeprowadzono walidację twardą i miękką regułami logicznymi/dziedzinowymi. Walidacja twarda nie wykazała naruszeń. Reguły miękkie wykazały jedynie przypadki nietypowe, które pozostawiono w zbiorze jako obserwacje potencjalnie realistyczne. W konsekwencji zbiór uznano za spójny do dalszych etapów analizy
 
-```{r walid}
+```{r walidacja}
 # sprawdzanie występowania braków danych, żeby wiedzieć gdzie w regułach musimy dopuśćić wystapowanie NA
 miss_var_summary(dane_gdansk)
 # reguly: dla zmiennych, w których nie występowały braki danych, nie uwzględniano warunku is.na(). Dla pozostałych zmiennych braki danych pozostawiono i traktowano jako dopuszczalne
@@ -209,7 +211,7 @@ Ze względu na nielosowy charakter braków oraz ich koncentrację w wybranych zm
 
 ggmice
 
-```{r imp}
+```{r imputacja}
 methods <- make.method(dane_gdansk)
 methods[] <- ""
 
@@ -236,9 +238,7 @@ dane_imputed <- complete(imp, 1)
 
 ```
 
-srtrip plot dla danych po imputacji
-
-```{r imp_gr}
+```{r imp_graphs}
 plot(imp)
 
 densityplot(imp, ~ floor)
@@ -256,82 +256,9 @@ stripplot(imp, collegeDistance ~ .imp, pch = 20, cex = 1)
 
 
 ```
-
-```{r}
-```
-
 dane jakosciowe Rozdzial X : analiza opisowa i wizualizacja zmiennych jakościowych Wykresy i statystyki opisowe do świąt
 
-```{r}
-# Wykresy zmiennych ilościowych
-# a) Rozkład cen mieszkań, czy trzeb pokazac takze w skali log?
-# 
-# ggplot(dane_clean, aes(x = price)) +
-#   geom_histogram(bins = 40, fill = "#4292c6", color = "white") +
-#   scale_x_continuous(labels = scales::comma) +
-#   labs(
-#     title = "Rozkład cen mieszkań",
-#     x = "Cena (PLN)",
-#     y = "Liczba ofert"
-#   ) +
-# #   theme_minimal()
-# # b)cena a metraż
-# ggplot(dane_clean, aes(x = squareMeters, y = price)) +
-#   geom_point(alpha = 0.4, color = "#2b8cbe") +
-#   geom_smooth(method = "lm", se = FALSE, color = "#d95f0e") +
-#   scale_y_continuous(labels = scales::comma) +
-#   labs(
-#     title = "Zależność ceny od metrażu",
-#     x = "Metraż (m²)",
-#     y = "Cena (PLN)"
-#   ) +
-#   theme_minimal()
-# # # # c) cena za metrz kwadratowy a odległość od ....
-# # #
-# ggplot(df, aes(x = centreDistance, y = price_m2)) +
-#   geom_point(alpha = 0.4, color = "#74a9cf") +
-#   geom_smooth(method = "loess", color = "red") +
-#   scale_y_continuous(labels = scales::comma) +
-#   labs(
-#     title = "Cena za m² a odległość od centrum",
-#     x = "Odległość od centrum (km)",
-#     y = "Cena za m² (PLN)"
-#   ) +
-#   theme_minimal()
-#  # wykresy zmiennych jakościowych
-# # a) typ mieszkania w porównaniu do ilości ? moze zamienic na cos ineego -> BOO A DUŻO BRAKÓW BYŁO
-# ggplot(df, aes(x = type)) +
-#   geom_bar(fill = "#6baed6") +
-#   labs(
-#     title = "Liczba ofert według typu mieszkania",
-#     x = "Typ",
-#     y = "Liczba ofert"
-#   ) +
-#   theme_minimal()
-# # b) porównanie do ceny
-# 
-# # d) balkon a cena
-# ggplot(df, aes(x = hasBalcony, y = price)) +
-#   geom_boxplot(fill = "#a1d99b") +
-#   scale_y_continuous(labels = scales::comma) +
-#   labs(
-#     title = "Wpływ balkonu na cenę mieszkania",
-#     x = "Balkon",
-#     y = "Cena (PLN)"
-#   ) +
-#   theme_minimal()
-# ====================================================================================================
-
-# # # liczba pokoi a cena
-ggplot(dane_imputed, aes(x = factor(rooms), y = price)) +
-  geom_boxplot(fill = "#9ecae1") +
-  scale_y_continuous(labels = scales::comma) +
-  labs(
-    title = "Cena mieszkań a liczba pokoi",
-    x = "Liczba pokoi",
-    y = "Cena (PLN)"
-  ) +
-  theme_minimal()
+```{r wykresy}
 # # metraż a cena
 dane_imputed %>%
   mutate(
@@ -369,11 +296,11 @@ dane_imputed %>%
   ) +
   theme_minimal()
 dane_imputed %>%
+  filter(!is.na(floor), hasElevator %in% c("yes","no"))%>%
   mutate(
     floor_bin = cut(floor, breaks = c(-Inf,1,3,5,10,Inf),
                     labels = c("1","2–3","4–5","6–10","11+"))
   ) %>%
-  filter(hasElevator %in% c("yes","no")) %>%
   ggplot(aes(x = floor_bin, y = price_m2, fill = hasElevator)) +
   geom_boxplot(position = position_dodge(width = 0.8)) +
   scale_y_continuous(labels = scales::comma) +
@@ -394,56 +321,9 @@ ggplot(dane_imputed, aes(x = hasBalcony, y = price_m2)) +
     y = "Cena za m² [PLN]"
   ) +
   theme_minimal()
-
-dane_imputed %>%
-  mutate(
-    centre_bin = cut(
-      centreDistance,
-      breaks = c(0, 1, 3, 5, 8, Inf),
-      labels = c("≤1 km","1–3","3–5","5–8",">8")
-    )
-  ) %>%
-  ggplot(aes(x = price_m2, y = centre_bin, fill = centre_bin)) +
-  geom_density_ridges(alpha = 0.7, show.legend = FALSE) +
-  scale_x_continuous(labels = scales::comma) +
-  labs(
-    title = "Rozkład ceny za m² w zależności od odległości od centrum",
-    x = "Cena za m² [PLN]",
-    y = "Odległość od centrum"
-  ) +
-  theme_minimal()
-
-heat_data <- dane_imputed %>%
-  mutate(
-    centre_bin = cut(centreDistance, c(0,1,3,5,8,Inf)),
-    rooms = factor(rooms)
-  ) %>%
-  group_by(centre_bin, rooms) %>%
-  summarise(median = median(price_m2), .groups = "drop")
-
-ggplot(heat_data, aes(x = rooms, y = centre_bin, fill = median)) +
-  geom_tile() +
-  scale_fill_viridis_c(labels = scales::comma) +
-  labs(
-    title = "Mediana ceny za m² według liczby pokoi i odległości od centrum",
-    x = "Liczba pokoi",
-    y = "Odległość od centrum",
-    fill = "Mediana ceny"
-  ) +
-  theme_minimal()
+###  Różnice cen za m² pomiędzy mieszkaniami z balkonem i bez balkonu są relatywnie niewielkie w porównaniu z innymi czynnikami ### 
 
 
-leaflet(dane_imputed) %>%
-  addProviderTiles("CartoDB.Positron") %>%
-  addCircleMarkers(
-    lng = ~longitude,
-    lat = ~latitude,
-    radius = 3,
-    color = ~colorNumeric("viridis", price_m2)(price_m2),
-    stroke = FALSE,
-    fillOpacity = 0.6,
-    popup = ~paste0("Cena/m²: ", scales::comma(price_m2), " PLN")
-  )
 # ETU TOCZNO OSZTAWLIAJEM
 pal <- colorNumeric("viridis", domain = dane_imputed$price_m2, na.color = "transparent")
 
@@ -459,28 +339,10 @@ leaflet(dane_imputed) %>%
   ) %>%
   addLegend("bottomright", pal = pal, values = ~price_m2,
             title = "Cena za m² [PLN]", labFormat = labelFormat())
-# heatmapa gęstości ofert:
-leaflet(dane_imputed) %>%
-  addProviderTiles("CartoDB.Positron") %>%
-  addHeatmap(
-    lng = ~longitude, lat = ~latitude,
-    blur = 20, radius = 15,
-    max = 1
-  )
-# heatmapa „gdzie drogo” (waga = cena/m²):
-leaflet(dane_imputed) %>%
-  addProviderTiles("CartoDB.Positron") %>%
-  addHeatmap(
-    lng = ~longitude, lat = ~latitude,
-    intensity = ~price_m2,
-    blur = 0.1, radius = 15,
-    max = max(dane_imputed$price_m2, na.rm = TRUE)
-  )
-
 
 ```
 
-```{r stat, results='asis', echo=FALSE}
+```{r staystyki, results='asis', echo=FALSE}
 cat_vars <- c(
   "type","ownership","hasParkingSpace","hasBalcony",
   "hasElevator","hasSecurity","hasStorageRoom"
@@ -497,18 +359,6 @@ tab_cat_meta <- dane_imputed %>%
     liczba_kategorii = n_distinct(val, na.rm = TRUE),
     .groups = "drop"
   )
-
-tab_cat_dist <-dane_imputed %>%
-  select(all_of(cat_vars)) %>%
-  pivot_longer(everything(), names_to = "variable", values_to = "category") %>%
-  filter(!is.na(category)) %>%
-  count(variable, category, name = "n") %>%
-  group_by(variable) %>%
-  mutate(pct = round(n / sum(n) * 100, 1)) %>%
-  arrange(variable, desc(n)) %>%
-  ungroup()
-
-
 bin_vars <- c("hasParkingSpace","hasBalcony","hasElevator","hasSecurity","hasStorageRoom")
 
 tab_bin <- dane_imputed %>%
@@ -520,35 +370,20 @@ tab_bin <- dane_imputed %>%
     n = n(),
     missing = sum(is.na(val)),
     n_nonmiss = n - missing,
-    yes_n = sum(val %in% c("yes","1","true","t"), na.rm = TRUE),
+    yes_n = sum(val %in% c("yes"), na.rm = TRUE),
     yes_pct = round(yes_n / n_nonmiss * 100, 1),
     .groups = "drop"
   )
- # balkon x winda
-tab_cont <- dane_imputed %>%
-  select(hasBalcony, hasElevator) %>%
-  filter(!is.na(hasBalcony), !is.na(hasElevator)) %>%
-  count(hasBalcony, hasElevator, name = "n") %>%
-  group_by(hasBalcony) %>%
-  mutate(pct_row = round(n / sum(n) * 100, 1)) %>%
-  ungroup()
+tab_bin_final <- tab_bin %>% select(variable, n_nonmiss, yes_n, yes_pct)
 
-tab_matrix <- table(dane_imputed$hasBalcony, dane_imputed$hasElevator)
-chi <- chisq.test(tab_matrix)
-chi
 tab_cat_meta <- tab_cat_meta %>% mutate(variable = label_vars(variable))
-tab_cat_dist <- tab_cat_dist %>% mutate(variable = label_vars(variable))
-tab_cat_top  <- tab_cat_top  %>% mutate(variable = label_vars(variable))
 tab_bin      <- tab_bin      %>% mutate(variable = label_vars(variable))
 
 kable(tab_cat_meta, format = "html", digits = 2, caption = "Statystyki opisowe zmiennych jakościowych", col.names = c("Zmienna", "Liczba obserwacji", "Liczba braków", "% kompletności", "Liczba kategorii")) %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-kable(tab_bin, format = "html", digits = 2, caption = "Procent 'tak' w zmiennych binarnych", col.names = c("Zmienna", "Liczba obserwacji", "Liczba braków", "Liczba niebraków", "Liczba 'tak'", "% 'tak'")) %>%
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-kable(tab_cont, format = "html", digits = 2, caption = "Tabela kontyngencji: Balkon vs Winda", col.names = c("Balkon", "Winda", "Liczba obserwacji", "% w wierszu")) %>%
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
-
+kable(tab_bin_final,format = "html",digits = 2,caption = "Struktura zmiennych binarnych – udział odpowiedzi „tak”",col.names = c("Zmienna","Liczba obserwacji","Liczba „tak”","% „tak”")) %>%
+  kable_styling(full_width = FALSE,bootstrap_options = c("striped", "hover"))
 # =====================================================================================================
 
 # zmienne dyskretne 
@@ -568,6 +403,7 @@ tab_disc <- dane_imputed %>%
     max  = `numeric.p100`
   ) %>%
   mutate(complete_rate = round(complete_rate * 100, 1), zmienna = label_vars(zmienna))
+### Niektóre zmienne (rok budowy, liczba punktów POI) wykazują znaczną zmienność i skośność, co zostało uwzględnione na etapie modelowania ###
 # zmienne ciagle
 cont_vars <- c("squareMeters","price","price_m2")
 tab_num <- dane_imputed %>%
@@ -615,20 +451,207 @@ kable(tab_od, format = "html", digits = 2, caption = "Statystyki opisowe (zmienn
 
 ```
 
-```{r}
-# testy statystyczne 
-library(ggstatsplot)
+```{r testowanie hipotez}
+# „Kluczowe zmienne wykorzystywane w analizie wnioskowania statystycznego nie zawierały braków danych, co pozwoliło na przeprowadzenie testów bez dodatkowej redukcji próby
+
+# HIPOTEZA 1 i 4 -> korelacje rang Spearmana
+h1_results <- dane_imputed %>%
+  cor_test(centreDistance, c(price, price_m2), method = "spearman")
+
+h1_results
+
+h4_results <- dane_imputed %>%
+  cor_test(squareMeters, c(price, price_m2), method = "spearman")
+
+h4_results
+
+# wybór kluczowych zmiennych do korelacji (H1 + H4)
+vars_cor <- dane_imputed %>% 
+  select(centreDistance, squareMeters, price, price_m2)
+cor_mat <- cor(vars_cor, method = "spearman", use = "complete.obs")
+
+ggcorrplot(cor_mat, lab = TRUE) +
+  scale_x_discrete(labels = label_vars) +
+  scale_y_discrete(labels = label_vars) +
+  scale_fill_gradient2(
+    low = "#2166ac",
+    mid = "white",
+    high = "#b2182b",
+    midpoint = 0,
+    limits = c(-1, 1)
+  ) +
+  labs(
+    title = "Korelacje rang Spearmana między kluczowymi cechami mieszkań"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 30, hjust = 1),
+    axis.title = element_blank(),
+    plot.title = element_text(face = "bold"),
+    legend.position = "none"
+  )
+
+
+# HIPOTEZA 2 -> test U Manna–Whitneya dla zmiennych binarnych
 
 ggbetweenstats(
-  data = dane_clean,
-  x = hasBalcony,
-  y = price,
-  title = "Wpływ balkonu na cenę mieszkania",
-  xlab = "Balkon",
-  ylab = "Cena (PLN)"
-) 
-# ilościowe
+  data = dane_imputed,
+  x = hasElevator,
+  y = price_m2,
+  type = "nonparametric",   #
+  conf.level = 0.95,
+  xlab = "Winda",
+  ylab = "Cena za m² [PLN]",
+  title = "Cena za m² a obecność windy",
+  caption = "Test U Manna–Whitneya"
+)
 
-# jajosciowe 
+# Rysunek przedstawia rozkład cen za m² mieszkań z windą i bez windy wraz z wynikami testu U Manna–Whitneya, ilustrując istotną statystycznie różnicę pomiędzy grupami
+
+h2_wilcox <-  dane_imputed %>%
+  select(price_m2, all_of(bin_vars)) %>%
+  pivot_longer(
+    cols = all_of(bin_vars),
+    names_to = "feature",
+    values_to = "group") %>%
+  filter(group %in% c("yes", "no")) %>%
+  group_by(feature) %>%
+  wilcox_test(price_m2 ~ group) %>%
+  add_significance("p") %>%
+  ungroup()
+
+h2_medians <-  dane_imputed %>%
+  select(price_m2, all_of(bin_vars)) %>%
+  pivot_longer(
+    cols = all_of(bin_vars),
+    names_to = "feature",
+    values_to = "group") %>%
+  filter(group %in% c("yes", "no")) %>%
+  group_by(feature, group) %>%
+  summarise(
+    n = n(),
+    median = median(price_m2),
+    .groups = "drop")
+
+h2_effect <-  dane_imputed %>%
+  select(price_m2, all_of(bin_vars)) %>%
+  pivot_longer(
+    cols = all_of(bin_vars),
+    names_to = "feature",
+    values_to = "group"
+  ) %>%
+  filter(group %in% c("yes", "no")) %>%
+  group_by(feature) %>%
+  wilcox_effsize(price_m2 ~ group)
+
+h2_results <- h2_wilcox %>%
+  left_join(h2_effect, by = "feature") %>%
+  left_join(h2_medians, by = "feature")
+
+
+h2_results <- h2_results %>%
+  adjust_pvalue(method = "BH")
+
+h2_pub <- h2_results %>%
+  select(feature,statistic, p, p.signif,effsize, magnitude,group, n, median) %>%
+  pivot_wider(
+    names_from = group,
+    values_from = c(n, median),
+    names_glue = "{.value}_{group}") %>%
+  mutate(
+    median_no  = round(median_no, 2),
+    median_yes = round(median_yes, 2),
+    effsize    = round(effsize, 3),
+    p          = signif(p, 4)) %>%
+  select(feature,n_no, n_yes,median_no, median_yes,statistic, p, p.signif,effsize, magnitude)
+h2_pub <- h2_pub %>%
+  mutate(feature = label_vars(feature))
+
+kable(
+  h2_pub,
+  format = "html",
+  caption = "H2: Porównanie ceny za m² między mieszkaniami z cechą standardu i bez (test U Manna–Whitneya)",
+  col.names = c(
+    "Cecha", "Ilość (bez)", "Ilość (z)",
+    "Mediana (bez)", "Mediana (z)",
+    "W", "p-value", "",
+    "r", "Wielkość efektu"
+  ),
+  digits = 2
+) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover")) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(7, bold = TRUE) %>%
+  scroll_box(width = "100%", height = "350px")
+
+bin_vars <- c("hasParkingSpace","hasBalcony","hasElevator","hasSecurity","hasStorageRoom")
+# 2) Wyniki korelacji Spearmana w grupach yes/no
+h3_results <- dane_imputed %>%
+  select(centreDistance, price_m2, all_of(bin_vars)) %>%
+  pivot_longer(
+    cols = all_of(bin_vars),
+    names_to = "feature",
+    values_to = "group"
+  ) %>%
+  filter(group %in% c("yes", "no")) %>%
+  group_by(feature, group) %>%
+  cor_test(centreDistance, price_m2, method = "spearman") %>%
+  ungroup()
+
+# 3) Tabela do raportu: 1 wiersz na cechę
+h3_pub <- h3_results %>%
+  transmute(
+    feature,
+    group,
+    rho = round(cor, 2),
+    p   = signif(p, 3)
+  ) %>%
+  pivot_wider(
+    names_from = group,
+    values_from = c(rho, p),
+    names_glue = "{.value}_{group}"
+  )
+h3_pub <- h3_pub %>%
+  mutate(feature = label_vars(feature))
+
+h3_results
+h3_pub
+
+
+h3_table <- h3_pub %>%
+  mutate(
+    `Δρ` = round(rho_yes - rho_no, 2),
+    p_no  = ifelse(p_no  < 0.001, "<0.001", format(p_no,  digits = 3)),
+    p_yes = ifelse(p_yes < 0.001, "<0.001", format(p_yes, digits = 3))
+  ) %>%
+  select(
+    Cecha = feature,
+    `ρ (bez cechy)` = rho_no,
+    `ρ (z cechą)`   = rho_yes,
+    `Δρ`,
+    `p (bez cechy)` = p_no,
+    `p (z cechą)`   = p_yes
+  )
+
+kable(
+  h3_table,
+  format = "html",
+  escape = FALSE,
+  caption = "H3: Korelacja Spearmana (odległość od centrum vs cena za m²) w grupach standardu"
+) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed")) %>%
+  column_spec(2:4, bold = TRUE)
+
+
+```
+
+
+
+
+
+
+
+
+
 
 ```
