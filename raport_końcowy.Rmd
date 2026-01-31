@@ -36,6 +36,13 @@ library(skimr)
 library(leaflet.extras)
 library(ggridges)
 library(prettydoc)
+library(ggstatsplot)
+library(ggcorrplot)
+library(rstatix)
+library(modelsummary)
+library(car)
+library(sandwich)
+library(lmtest)
 ```
 
 ## Wprowadzenie 
@@ -99,7 +106,6 @@ W niniejszym rozdziale przedstawiono proces przygotowania danych do analizy cen 
 ### Wstępne przetwarzanie i selekcja danych
 W pierwszym etapie dane zostały ograniczone do obserwacji dotyczących miasta Gdańsk, co pozwoliło skoncentrować analizę na jednym, spójnym rynku lokalnym. Następnie przeprowadzono podstawowe czynności przygotowawcze obejmujące kontrolę duplikatów, selekcję zmiennych istotnych analitycznie, standaryzację typów danych oraz utworzenie zmiennej ceny za metr kwadratowy.
 ```{r wstep, include=FALSE}
-setwd('/Users/olenadovhopola/Desktop/magisterka ')
 dane<-read_csv("apartments_pl_2024_06.csv")
 dane<-filter(dane, city=="gdansk")
 sum(duplicated(dane))#  brak duplikatów-> mozna usunąć kolumne id i iine nie potrzebne kolumny
@@ -137,7 +143,9 @@ var_labels <- c(
   price_m2 = "Cena za metr kwadratowy [PLN/m²]"
 )
 var_labels <- as.list(var_labels)
-label_vars <- function(x) {recode(x, !!!var_labels)}
+label_vars <- function(x) {
+  sapply(as.character(x), function(v) var_labels[[v]])
+}
 ```
 W wyniku kontroli nie stwierdzono występowania duplikatów obserwacji, co pozwoliło na zachowanie pełnej liczby rekordów w dalszej analizie.
 
@@ -794,3 +802,340 @@ leaflet(dane_imputed) %>%
   )
 ```
 Mapa ciepła ważona ceną za metr kwadratowy łączy informacje o lokalizacji ofert z poziomem cen, umożliwiając identyfikację obszarów charakteryzujących się wysokimi wartościami cenowymi. W przeciwieństwie do mapy gęstości ofert, wizualizacja ta akcentuje przestrzenne skupiska drogich nieruchomości, niezależnie od liczby występujących tam ogłoszeń.
+```{r}
+h1_results <- dane_imputed %>%
+  cor_test(centreDistance, c(price, price_m2), method = "spearman")
+
+h1_results
+
+h4_results <- dane_imputed %>%
+  cor_test(squareMeters, c(price, price_m2), method = "spearman")
+
+h4_results
+
+# wybór kluczowych zmiennych do korelacji (H1 + H4)
+vars_cor <- dane_imputed %>% 
+  select(centreDistance, squareMeters, price, price_m2)
+cor_mat <- cor(vars_cor, method = "spearman", use = "complete.obs")
+
+ggcorrplot(cor_mat, lab = TRUE) +
+  scale_x_discrete(labels = label_vars) +
+  scale_y_discrete(labels = label_vars) +
+  scale_fill_gradient2(
+    low = "#2166ac",
+    mid = "white",
+    high = "#b2182b",
+    midpoint = 0,
+    limits = c(-1, 1)
+  ) +
+  labs(
+    title = "Korelacje rang Spearmana między kluczowymi cechami mieszkań"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 30, hjust = 1),
+    axis.title = element_blank(),
+    plot.title = element_text(face = "bold"),
+    legend.position = "none"
+  )
+
+
+# HIPOTEZA 2 -> test U Manna–Whitneya dla zmiennych binarnych
+
+ggbetweenstats(
+  data = dane_imputed,
+  x = hasElevator,
+  y = price_m2,
+  type = "nonparametric",   #
+  conf.level = 0.95,
+  xlab = "Winda",
+  ylab = "Cena za m² [PLN]",
+  title = "Cena za m² a obecność windy",
+  caption = "Test U Manna–Whitneya"
+)
+
+# Rysunek przedstawia rozkład cen za m² mieszkań z windą i bez windy wraz z wynikami testu U Manna–Whitneya, ilustrując istotną statystycznie różnicę pomiędzy grupami
+
+h2_wilcox <-  dane_imputed %>%
+  select(price_m2, all_of(bin_vars)) %>%
+  pivot_longer(
+    cols = all_of(bin_vars),
+    names_to = "feature",
+    values_to = "group") %>%
+  filter(group %in% c("yes", "no")) %>%
+  group_by(feature) %>%
+  wilcox_test(price_m2 ~ group) %>%
+  add_significance("p") %>%
+  ungroup()
+
+h2_medians <-  dane_imputed %>%
+  select(price_m2, all_of(bin_vars)) %>%
+  pivot_longer(
+    cols = all_of(bin_vars),
+    names_to = "feature",
+    values_to = "group") %>%
+  filter(group %in% c("yes", "no")) %>%
+  group_by(feature, group) %>%
+  summarise(
+    n = n(),
+    median = median(price_m2),
+    .groups = "drop")
+
+h2_effect <-  dane_imputed %>%
+  select(price_m2, all_of(bin_vars)) %>%
+  pivot_longer(
+    cols = all_of(bin_vars),
+    names_to = "feature",
+    values_to = "group"
+  ) %>%
+  filter(group %in% c("yes", "no")) %>%
+  group_by(feature) %>%
+  wilcox_effsize(price_m2 ~ group)
+
+h2_results <- h2_wilcox %>%
+  left_join(h2_effect, by = "feature") %>%
+  left_join(h2_medians, by = "feature")
+
+
+h2_results <- h2_results %>%
+  adjust_pvalue(method = "BH")
+
+h2_pub <- h2_results %>%
+  select(feature,statistic, p, p.signif,effsize, magnitude,group, n, median) %>%
+  pivot_wider(
+    names_from = group,
+    values_from = c(n, median),
+    names_glue = "{.value}_{group}") %>%
+  mutate(
+    median_no  = round(median_no, 2),
+    median_yes = round(median_yes, 2),
+    effsize    = round(effsize, 3),
+    p          = signif(p, 4)) %>%
+  select(feature,n_no, n_yes,median_no, median_yes,statistic, p, p.signif,effsize, magnitude)
+h2_pub <- h2_pub %>%
+  mutate(feature = label_vars(feature))
+
+kable(
+  h2_pub,
+  format = "html",
+  caption = "H2: Porównanie ceny za m² między mieszkaniami z cechą standardu i bez (test U Manna–Whitneya)",
+  col.names = c(
+    "Cecha", "Ilość (bez)", "Ilość (z)",
+    "Mediana (bez)", "Mediana (z)",
+    "W", "p-value", "",
+    "r", "Wielkość efektu"
+  ),
+  digits = 2
+) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover")) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(7, bold = TRUE) %>%
+  scroll_box(width = "100%", height = "350px")
+
+bin_vars <- c("hasParkingSpace","hasBalcony","hasElevator","hasSecurity","hasStorageRoom")
+# 2) Wyniki korelacji Spearmana w grupach yes/no
+h3_results <- dane_imputed %>%
+  select(centreDistance, price_m2, all_of(bin_vars)) %>%
+  pivot_longer(
+    cols = all_of(bin_vars),
+    names_to = "feature",
+    values_to = "group"
+  ) %>%
+  filter(group %in% c("yes", "no")) %>%
+  group_by(feature, group) %>%
+  cor_test(centreDistance, price_m2, method = "spearman") %>%
+  ungroup()
+
+# 3) Tabela do raportu: 1 wiersz na cechę
+h3_pub <- h3_results %>%
+  transmute(
+    feature,
+    group,
+    rho = round(cor, 2),
+    p   = signif(p, 3)
+  ) %>%
+  pivot_wider(
+    names_from = group,
+    values_from = c(rho, p),
+    names_glue = "{.value}_{group}"
+  )
+h3_pub <- h3_pub %>%
+  mutate(feature = label_vars(feature))
+
+h3_results
+h3_pub
+
+
+h3_table <- h3_pub %>%
+  mutate(
+    `Δρ` = round(rho_yes - rho_no, 2),
+    p_no  = ifelse(p_no  < 0.001, "<0.001", format(p_no,  digits = 3)),
+    p_yes = ifelse(p_yes < 0.001, "<0.001", format(p_yes, digits = 3))
+  ) %>%
+  select(
+    Cecha = feature,
+    `ρ (bez cechy)` = rho_no,
+    `ρ (z cechą)`   = rho_yes,
+    `Δρ`,
+    `p (bez cechy)` = p_no,
+    `p (z cechą)`   = p_yes
+  )
+
+kable(
+  h3_table,
+  format = "html",
+  escape = FALSE,
+  caption = "H3: Korelacja Spearmana (odległość od centrum vs cena za m²) w grupach standardu"
+) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed")) %>%
+  column_spec(2:4, bold = TRUE)
+kable(
+  h3_pub,
+  format = "html",
+  caption = "H3: Zależność odległości od centrum i ceny za m² w grupach standardu (korelacja Spearmana)",
+  col.names = c(
+    "Cecha",
+    "ρ (bez)",
+    "ρ (z)",
+    "p (bez)",
+    "p (z)"
+  ),
+  digits = 2
+) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover")) %>%
+  column_spec(1, bold = TRUE)
+```
+
+```{r}
+df <- dane_imputed %>%
+  mutate(
+    ln_price_m2 = log(price_m2),
+    ln_centre = log1p(centreDistance),   
+    ln_poi = log1p(poiCount),
+    ln_area = log(squareMeters),
+    rooms = factor(rooms),
+    type = factor(type),
+    ownership = factor(ownership),
+    hasElevator     = factor(hasElevator, levels = c("no","yes")),
+    hasSecurity     = factor(hasSecurity, levels = c("no","yes")),
+    hasStorageRoom  = factor(hasStorageRoom, levels = c("no","yes")),
+    hasBalcony      = factor(hasBalcony, levels = c("no","yes")),
+    hasParkingSpace = factor(hasParkingSpace, levels = c("no","yes"))) %>%
+  filter(
+    is.finite(ln_price_m2),
+    is.finite(ln_centre),
+    is.finite(ln_area),
+    !is.na(buildYear),
+    !is.na(floor),
+    !is.na(floorCount))
+
+
+m0 <- lm(ln_price_m2 ~ ln_centre, data = df)
+summary(m0)
+coeftest(m0, vcov = vcovHC(m_final, "HC1"))
+
+m1 <- lm(ln_price_m2 ~ ln_centre + ln_area + rooms +buildYear + floor + floorCount,data = df)
+summary(m1)
+coeftest(m1, vcov = vcovHC(m_final, "HC1"))
+vif(m1)
+
+m2 <- lm(ln_price_m2 ~ ln_centre + ln_area + rooms +buildYear + floor + floorCount +ln_poi + schoolDistance + restaurantDistance,data =df)
+summary(m2)
+coeftest(m2, vcov = vcovHC(m_final, "HC1"))
+vif(m2)
+
+m3 <- lm(ln_price_m2 ~ ln_centre + ln_area + rooms +buildYear + floor + floorCount +ln_poi + schoolDistance + restaurantDistance+hasElevator + hasBalcony + hasSecurity +hasStorageRoom + hasParkingSpace,data = df)
+summary(m3)
+coeftest(m3, vcov = vcovHC(m_final, "HC1"))
+vif(m3)
+
+m4 <- lm(ln_price_m2 ~ ln_centre + ln_area + rooms +buildYear + floor + floorCount +ln_poi + schoolDistance + restaurantDistance+hasElevator + hasSecurity + hasStorageRoom +ln_centre:hasElevator +ln_centre:hasStorageRoom,data = df)
+summary(m4)
+coeftest(m4, vcov = vcovHC(m4, type = "HC1"))
+bptest(m4)
+vif(m4)
+
+m_final <- lm( ln_price_m2 ~ ln_centre +ln_area +buildYear +floor +ln_poi +hasElevator +hasStorageRoom+ ln_centre:hasElevator+ln_centre:hasStorageRoom,data = df)
+summary(m_final)
+coeftest(m_final, vcov = vcovHC(m_final, "HC1"))
+vif(m_final)
+
+model_summary_extended <- tibble::tibble(
+  Model = c("Model 0", "Model 1", "Model 2", "Model 3", "Model 4", "Model Final"),
+  `R² (adj)` = c(
+    round(summary(m0)$adj.r.squared, 3),
+    round(summary(m1)$adj.r.squared, 3),
+    round(summary(m2)$adj.r.squared, 3),
+    round(summary(m3)$adj.r.squared, 3),
+    round(summary(m4)$adj.r.squared, 3),
+    round(summary(m_final)$adj.r.squared, 3)
+  ),
+  `Błąd standardowy` = c(
+    round(sigma(m0), 3),
+    round(sigma(m1), 3),
+    round(sigma(m2), 3),
+    round(sigma(m3), 3),
+    round(sigma(m4), 3),
+    round(sigma(m_final), 3)
+  ),
+  AIC = c(
+    AIC(m0),
+    AIC(m1),
+    AIC(m2),
+    AIC(m3),
+    AIC(m4),
+    AIC(m_final)
+  ),
+  BIC = c(
+    BIC(m0),
+    BIC(m1),
+    BIC(m2),
+    BIC(m3),
+    BIC(m4),
+    BIC(m_final)
+  ),
+  `Log-Likelihood` = c(
+    logLik(m0),
+    logLik(m1),
+    logLik(m2),
+    logLik(m3),
+    logLik(m4),
+    logLik(m_final)
+  ),
+  `Liczba obserwacji` = c(
+    nobs(m0),
+    nobs(m1),
+    nobs(m2),
+    nobs(m3),
+    nobs(m4),
+    nobs(m_final)
+  ),
+  `Liczba zmiennych` = c(
+    length(coef(m0)),
+    length(coef(m1)),
+    length(coef(m2)),
+    length(coef(m3)),
+    length(coef(m4)),
+    length(coef(m_final))
+  ),
+  `VIF > 5` = c(
+    NA,
+    sum(vif(m1) > 5),
+    sum(vif(m2) > 5),
+    sum(vif(m3) > 5),
+    sum(vif(m4) > 5),
+    sum(vif(m_final) > 5)))
+
+model_summary_extended %>%
+  kable(
+    format = "html",
+    caption = "Podsumowanie wyników regresji – różne modele",
+    col.names = c("Model", "R² (adj)", "Błąd standardowy", "AIC", "BIC", "Log-Likelihood", "Liczba obserwacji", "Liczba zmiennych", "VIF > 5")
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed")) %>%
+  row_spec(0, bold = TRUE, background = "#D3D3D3") %>%
+  column_spec(2:5, bold = TRUE) %>%
+  column_spec(9, color = "red") 
+
+
+```

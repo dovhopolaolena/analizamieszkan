@@ -799,7 +799,7 @@ model_summary_extended %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed")) %>%
   row_spec(0, bold = TRUE, background = "#D3D3D3") %>%
   column_spec(2:5, bold = TRUE) %>%
-  column_spec(9, color = "red") # wyróżnienie kolumny VIF
+  column_spec(9, color = "red") 
 ```
 ```
 
