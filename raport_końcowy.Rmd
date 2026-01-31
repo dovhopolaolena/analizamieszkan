@@ -2,7 +2,9 @@
 title: "Analiza mieszkań na obszarze miasta Gdańsk"
 author: "Veronika Krasnianska, Olena Dovhopola"
 date: "`r Sys.Date()`"
-output: html_document
+output: 
+  html_document:
+    theme: journal 
 ---
 
 ```{r setup, include=FALSE}
@@ -78,3 +80,266 @@ kable(
   )
 ```
 
+##  Przygotowanie danych 
+### Wstępne przetwarzanie danych 
+W pierwszym kroku wczytane dane są ograniczane wyłącznie do obserwacji dotyczących miasta Gdańsk, dzięki czemu dalsza analiza koncentruje się na jednym, spójnym rynku lokalnym.
+Natępnie realizuje się podstawowy pipeline przygotowania danych do analizy cen mieszkań w Gdańsku: po wczytaniu i przefiltrowaniu danych do jednego miasta wykonywane jest wstępne czyszczenie obejmujące kontrolę duplikatów oraz selekcję zmiennych istotnych analitycznie, następnie standaryzowane są typy danych poprzez konwersję zmiennych kategorycznych do faktorów, a na końcu tworzona jest zmienna ceny za metr kwadratowy, umożliwiająca porównywanie ofert niezależnie od ich metrażu.
+
+```{r wstep, include=FALSE}
+dane<-read_csv("apartments_pl_2024_06.csv")
+dane<-filter(dane, city=="gdansk")
+sum(duplicated(dane))#  brak duplikatów-> mozna usunąć kolumne id i iine nie potrzebne kolumny
+# takie wstępne przygotowanie danych
+dane_gdansk <- dane %>%
+  select(-c(id, condition, buildingMaterial,city))%>%
+  mutate(across(where(is.character),as.factor))%>%
+  mutate(price_m2 = price / squareMeters)
+# slowniki do etykietowania zmiennych 
+var_labels <- c(
+  type = "Typ budynku",
+  squareMeters = "Powierzchnia mieszkania [m²]",
+  rooms = "Liczba pokoi",
+  floor = "Piętro",
+  floorCount = "Liczba kondygnacji w budynku",
+  buildYear = "Rok budowy",
+  latitude = "Szerokość geograficzna",
+  longitude = "Długość geograficzna",
+  centreDistance = "Odległość od centrum [km]",
+  poiCount = "Liczba punktów POI w pobliżu",
+  schoolDistance = "Odległość do szkoły [km]",
+  clinicDistance = "Odległość do przychodni [km]",
+  postOfficeDistance = "Odległość do poczty [km]",
+  kindergartenDistance = "Odległość do przedszkola [km]",
+  restaurantDistance = "Odległość do restauracji [km]",
+  collegeDistance = "Odległość do uczelni [km]",
+  pharmacyDistance = "Odległość do apteki [km]",
+  ownership = "Forma własności",
+  hasParkingSpace = "Miejsce parkingowe",
+  hasBalcony = "Balkon",
+  hasElevator = "Winda",
+  hasSecurity = "Ochrona",
+  hasStorageRoom = "Komórka lokatorska",
+  price = "Cena całkowita [PLN]",
+  price_m2 = "Cena za metr kwadratowy [PLN/m²]"
+)
+var_labels <- as.list(var_labels)
+label_vars <- function(x) {recode(x, !!!var_labels)}
+```
+Ostatnim elementem jest wstępna wizualizacja przestrzenna danych w postaci interaktywnej mapy, umożliwiającej analizę rozmieszczenia ofert mieszkaniowych w przestrzeni miasta.
+```{r  mapa gdansk, echo=FALSE}
+# mapa mieszka -> NIE WIEM W KTÓRYM MOMENCIE NAJLEPIEJ JĄ DODAĆ
+leaflet(dane_gdansk) |>
+  addTiles() |>
+  addCircleMarkers(
+    lng = ~longitude,
+    lat = ~latitude,
+    radius = 3,
+    stroke = FALSE,
+    fillOpacity = 0.4
+  )
+```
+
+### Kontrola jakości i spójności danych 
+W tym kroku w pierwszej kolejności sprawdza się występowania braków danych, żeby wiedzieć gdzie w regułach może dopuśćić się wystapowanie NA.
+```{r braki danych, echo=FALSE}
+miss_var_summary(dane_gdansk) |>
+  slice(1:12) |>
+  rename(
+    Zmienna = variable,
+    `Liczba braków` = n_miss,
+    `Udział braków [%]` = pct_miss
+  ) |>
+  gt() |>
+  tab_header(
+    title = "Występowanie braków danych",
+    subtitle = "Podsumowanie dla zmiennych w zbiorze danych (niezaznaczone zmienne nie posiadają braków danych)"
+  ) |>
+  fmt_number(
+    columns = `Udział braków [%]`,
+    decimals = 2
+  )
+```
+
+```{r walidacja reguł twardych i miękkich, include=FALSE}
+# reguly: dla zmiennych, w których nie występowały braki danych, nie uwzględniano warunku is.na(). Dla pozostałych zmiennych braki danych pozostawiono i traktowano jako dopuszczalne
+rules_hard <- validator(
+
+  squareMeters > 0,
+  squareMeters <= 250,
+
+  rooms >= 1,
+  rooms <= 8,         
+
+  squareMeters >= rooms * 8,      
+  squareMeters <= rooms * 40,     
+
+  floor >= 0 | is.na(floor),     
+  floorCount >= 1 | is.na(floorCount),
+  floor <= floorCount | is.na(floor) | is.na(floorCount),
+
+  buildYear >= 1850 | is.na(buildYear),
+  buildYear <= 2025 | is.na(buildYear),
+  
+  centreDistance >= 0,
+  schoolDistance >= 0 | is.na(schoolDistance),
+  clinicDistance >= 0 | is.na(clinicDistance),
+  postOfficeDistance >= 0 | is.na(postOfficeDistance),
+  kindergartenDistance >= 0 | is.na(kindergartenDistance),
+  restaurantDistance >= 0 | is.na(restaurantDistance),
+  collegeDistance >= 0 | is.na(collegeDistance),
+  pharmacyDistance >= 0 | is.na(pharmacyDistance),
+
+  centreDistance <= 20,
+  schoolDistance <= 10 | is.na(schoolDistance),
+  clinicDistance <= 10 | is.na(clinicDistance),
+  postOfficeDistance <= 10 | is.na(postOfficeDistance),
+  kindergartenDistance <= 10 | is.na(kindergartenDistance),
+  restaurantDistance <= 10 | is.na(restaurantDistance),
+  collegeDistance <= 15 | is.na(collegeDistance),
+  pharmacyDistance <= 10 | is.na(pharmacyDistance),
+
+  poiCount >= 0,
+  poiCount <= 300,               
+
+  type %in% c("tenement","blockOfFlats","apartmentBuilding") | is.na(type),
+  ownership %in% c("condominium","cooperative"),
+
+  hasParkingSpace %in% c("yes","no"),
+  hasBalcony %in% c("yes","no"),
+  hasElevator %in% c("yes","no") | is.na(hasElevator),
+  hasSecurity %in% c("yes","no"),
+  hasStorageRoom %in% c("yes","no"),
+
+  price > 0,
+  price / squareMeters >= 8000,
+  price / squareMeters <= 35000
+)
+out_hard <- confront(dane_gdansk, rules_hard)
+summary(out_hard)
+out <- confront(dane_gdansk, rules_hard)
+summary(out)
+summary(out_hard)$fails
+
+rules_soft <- validator(
+
+  !(buildYear < 1945 & floorCount > 7) | is.na(buildYear) | is.na(floorCount),
+  !(floor >= 5 & buildYear >= 1995 & hasElevator == "no") | is.na(floor) | is.na(buildYear) | is.na(hasElevator),
+  !(squareMeters < 35 & rooms >= 3),
+  !(squareMeters > 80 & rooms == 1)
+)
+out_soft <- confront(dane_gdansk, rules_soft)
+summary(out_soft)
+summary(out_soft)$fails
+
+
+# Dla zmiennych, w których nie występowały braki danych, nie uwzględniano warunku is.na(). Dla pozostałych zmiennych braki danych pozostawiono i traktowano jako dopuszczalne
+```
+Następnie zdefiniowano zestaw reguł twardych, obejmujących podstawowe ograniczenia dziedzinowe oraz logiczne. Reguły te miały na celu identyfikację obserwacji jednoznacznie błędnych lub niespójnych.Te reguły twarde zostały zastosowane do zbioru danych, a ich spełnienie podsumowano w formie zbiorczej, bez prezentowania szczegółowych tabel naruszeń. Wyniki walidacji nie wykazały istotnych naruszeń spójności logicznej ani dziedzinowej, co pozwoliło uznać zbiór danych za poprawny na poziomie podstawowych ograniczeń.
+
+```{r tabela_reguly_twarde, echo=FALSE, message=FALSE, warning=FALSE}
+tab_hard <- summary(out_hard) |>
+  mutate(
+    `Odsetek naruszeń [%]` = round(100 * fails / items, 2),
+    Status = case_when(
+      error ~ "Błąd",
+      warning ~ "Ostrzeżenie",
+      fails > 0 ~ "Naruszona",
+      TRUE ~ "OK"
+    )
+  ) |>
+  select(
+    ID = name,
+    Status,
+    `Liczba obserwacji` = items,
+    `Spełnione` = passes,
+    `Naruszone` = fails,
+    `Braki (NA)` = nNA,
+    `Odsetek naruszeń [%]`,
+    Reguła = expression
+  ) |>
+  arrange(desc(`Naruszone`), desc(`Odsetek naruszeń [%]`), ID)
+  
+tab_hard |>
+  slice(1:10) |>
+  gt() |>
+  tab_header(
+    title = "Walidacja reguł twardych",
+    subtitle = "Podsumowanie spełnienia reguł dla zbioru danych"
+  ) |>
+  cols_align(
+    align = "left",
+    columns = c(ID, Status, Reguła)
+  ) |>
+  cols_align(
+    align = "right",
+    columns = c(`Liczba obserwacji`, `Spełnione`, `Naruszone`, `Braki (NA)`, `Odsetek naruszeń [%]`)
+  ) |>
+  data_color(
+    columns = `Naruszone`,
+    fn = function(x) ifelse(x > 0, "#f4cccc", "transparent")
+  ) |>
+  data_color(
+    columns = Status,
+    fn = function(x) ifelse(x %in% c("Naruszona","Błąd","Ostrzeżenie"), "#fff2cc", "transparent")
+  ) |>
+  tab_options(
+    table.font.size = px(12),
+    data_row.padding = px(3)
+  )
+```
+
+Dodatkowo przeprowadzono walidację miękką, opartą na regułach heurystycznych identyfikujących obserwacje nietypowe, lecz potencjalnie realistyczne, takie jak niestandardowe relacje pomiędzy rokiem budowy, liczbą kondygnacji, obecnością windy, metrażem i liczbą pokoi. Reguły te nie miały charakteru eliminacyjnego, lecz służyły jedynie do sygnalizacji możliwych anomalii. Zidentyfikowane przypadki pozostawiono w zbiorze danych, uznając je za możliwe do zaobserwowania na rzeczywistym rynku nieruchomości.
+```{r tabela_reguly_miekkie, echo=FALSE, message=FALSE, warning=FALSE}
+library(dplyr)
+library(gt)
+
+tab_soft <- summary(out_soft) |>
+  mutate(
+    `Odsetek naruszeń [%]` = round(100 * fails / items, 2),
+    Status = case_when(
+      error ~ "Błąd",
+      warning ~ "Ostrzeżenie",
+      fails > 0 ~ "Nietypowa",
+      TRUE ~ "OK"
+    )
+  ) |>
+  select(
+    ID = name,
+    Status,
+    `Liczba obserwacji` = items,
+    `Spełnione` = passes,
+    `Oznaczone` = fails,
+    `Braki (NA)` = nNA,
+    `Odsetek naruszeń [%]`,
+    Reguła = expression
+  ) |>
+  arrange(desc(`Oznaczone`), desc(`Odsetek naruszeń [%]`), ID)
+
+tab_soft |>
+  slice(1:10) |>
+  gt() |>
+  tab_header(
+    title = "Walidacja reguł miękkich",
+    subtitle = "Reguły heurystyczne – obserwacje nietypowe (top 10)"
+  ) |>
+  cols_align(
+    align = "left",
+    columns = c(ID, Status, Reguła)
+  ) |>
+  cols_align(
+    align = "right",
+    columns = c(`Liczba obserwacji`, `Spełnione`, `Oznaczone`, `Braki (NA)`, `Odsetek naruszeń [%]`)
+  ) |>
+  data_color(
+    columns = `Oznaczone`,
+    fn = function(x) ifelse(x > 0, "#fff2cc", "transparent")
+  ) |>
+  data_color(
+    columns = Status,
+    fn = function(x) ifelse(x %in% c("Nietypowa","Błąd","Ostrzeżenie"), "#fff2cc", "transparent")
+  ) |>
+  tab_options(
+    table.font.size = px(12),
+    data_row.padding = px(3)
+  )
+```
