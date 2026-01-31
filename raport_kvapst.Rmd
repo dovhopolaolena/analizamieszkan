@@ -721,7 +721,7 @@ summary(m_final)
 coeftest(m_final, vcov = vcovHC(m_final, "HC1"))
 vif(m_final)
 
-model_summary <- tibble::tibble(
+model_summary_extended <- tibble::tibble(
   Model = c("Model 0", "Model 1", "Model 2", "Model 3", "Model 4", "Model Final"),
   `R² (adj)` = c(
     round(summary(m0)$adj.r.squared, 3),
@@ -739,7 +739,47 @@ model_summary <- tibble::tibble(
     round(sigma(m4), 3),
     round(sigma(m_final), 3)
   ),
-  `VIF > 5 (liczba zmiennych współliniowych)` = c(
+  AIC = c(
+    AIC(m0),
+    AIC(m1),
+    AIC(m2),
+    AIC(m3),
+    AIC(m4),
+    AIC(m_final)
+  ),
+  BIC = c(
+    BIC(m0),
+    BIC(m1),
+    BIC(m2),
+    BIC(m3),
+    BIC(m4),
+    BIC(m_final)
+  ),
+  `Log-Likelihood` = c(
+    logLik(m0),
+    logLik(m1),
+    logLik(m2),
+    logLik(m3),
+    logLik(m4),
+    logLik(m_final)
+  ),
+  `Liczba obserwacji` = c(
+    nobs(m0),
+    nobs(m1),
+    nobs(m2),
+    nobs(m3),
+    nobs(m4),
+    nobs(m_final)
+  ),
+  `Liczba zmiennych` = c(
+    length(coef(m0)),
+    length(coef(m1)),
+    length(coef(m2)),
+    length(coef(m3)),
+    length(coef(m4)),
+    length(coef(m_final))
+  ),
+  `VIF > 5` = c(
     NA,
     sum(vif(m1) > 5),
     sum(vif(m2) > 5),
@@ -749,18 +789,20 @@ model_summary <- tibble::tibble(
   )
 )
 
-# Tabela końcowa
-model_summary %>%
+# Generowanie tabeli z kableExtra
+model_summary_extended %>%
   kable(
     format = "html",
-    caption = "Podsumowanie wyników modeli regresji",
-    col.names = c("Model", "R² (adj)", "Błąd standardowy", "VIF > 5") 
+    caption = "Podsumowanie wyników regresji – różne modele",
+    col.names = c("Model", "R² (adj)", "Błąd standardowy", "AIC", "BIC", "Log-Likelihood", "Liczba obserwacji", "Liczba zmiennych", "VIF > 5")
   ) %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed")) %>%
-  row_spec(0, bold = TRUE) %>%
-  column_spec(2:4, bold = TRUE) %>%
-  column_spec(4, color = "red") # 
+  row_spec(0, bold = TRUE, background = "#D3D3D3") %>%
+  column_spec(2:5, bold = TRUE) %>%
+  column_spec(9, color = "red") # wyróżnienie kolumny VIF
 ```
+```
+
 
 
 ```
