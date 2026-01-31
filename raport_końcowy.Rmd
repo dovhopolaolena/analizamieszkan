@@ -88,10 +88,10 @@ kable(
 ### Pytania badawcze 
 Celem analizy jest ocena wpływu lokalizacji oraz standardu technicznego mieszkania na poziom cen na rynku mieszkaniowym w Gdańsku. W szczególności badanie koncentruje się na zależności pomiędzy odległością mieszkania od centrum miasta a ceną oraz sprawdzeniu, czy wybrane cechy standardu technicznego modyfikują tę zależność.
 W związku z tym sformułowano następujące pytania badawcze:
-  • Czy wzrost odległości mieszkania od centrum miasta wiąże się ze spadkiem cen mieszkań oraz cen za metr kwadratowy?
-  • Czy mieszkania o wyższym standardzie technicznym osiągają wyższe ceny niż mieszkania pozbawione określonych udogodnień?
-  • Czy siła i kierunek zależności pomiędzy odległością od centrum a ceną za metr kwadratowy różnią się w zależności od standardu technicznego mieszkania?
-  • Czy metraż mieszkania jest dodatnio związany z ceną całkowitą oraz ujemnie związany z ceną za metr kwadratowy?
+  + Czy wzrost odległości mieszkania od centrum miasta wiąże się ze spadkiem cen mieszkań oraz cen za metr kwadratowy?
+  + Czy mieszkania o wyższym standardzie technicznym osiągają wyższe ceny niż mieszkania pozbawione określonych udogodnień?
+  + Czy siła i kierunek zależności pomiędzy odległością od centrum a ceną za metr kwadratowy różnią się w zależności od standardu technicznego mieszkania?
+  + Czy metraż mieszkania jest dodatnio związany z ceną całkowitą oraz ujemnie związany z ceną za metr kwadratowy?
 
 ##  Przygotowanie i kontrola jakości danych 
 W niniejszym rozdziale przedstawiono proces przygotowania danych do analizy cen mieszkań w Gdańsku. Obejmuje on wstępne przetwarzanie danych, analizę braków, walidację spójności logicznej oraz identyfikację obserwacji odstających, których celem było zapewnienie jakości i wiarygodności dalszych analiz statystycznych.

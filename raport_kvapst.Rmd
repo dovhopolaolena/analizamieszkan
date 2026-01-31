@@ -721,6 +721,46 @@ summary(m_final)
 coeftest(m_final, vcov = vcovHC(m_final, "HC1"))
 vif(m_final)
 
+model_summary <- tibble::tibble(
+  Model = c("Model 0", "Model 1", "Model 2", "Model 3", "Model 4", "Model Final"),
+  `R² (adj)` = c(
+    round(summary(m0)$adj.r.squared, 3),
+    round(summary(m1)$adj.r.squared, 3),
+    round(summary(m2)$adj.r.squared, 3),
+    round(summary(m3)$adj.r.squared, 3),
+    round(summary(m4)$adj.r.squared, 3),
+    round(summary(m_final)$adj.r.squared, 3)
+  ),
+  `Błąd standardowy` = c(
+    round(sigma(m0), 3),
+    round(sigma(m1), 3),
+    round(sigma(m2), 3),
+    round(sigma(m3), 3),
+    round(sigma(m4), 3),
+    round(sigma(m_final), 3)
+  ),
+  `VIF > 5 (liczba zmiennych współliniowych)` = c(
+    NA,
+    sum(vif(m1) > 5),
+    sum(vif(m2) > 5),
+    sum(vif(m3) > 5),
+    sum(vif(m4) > 5),
+    sum(vif(m_final) > 5)
+  )
+)
+
+# Tabela końcowa
+model_summary %>%
+  kable(
+    format = "html",
+    caption = "Podsumowanie wyników modeli regresji",
+    col.names = c("Model", "R² (adj)", "Błąd standardowy", "VIF > 5") 
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed")) %>%
+  row_spec(0, bold = TRUE) %>%
+  column_spec(2:4, bold = TRUE) %>%
+  column_spec(4, color = "red") # 
+```
 
 
 ```
