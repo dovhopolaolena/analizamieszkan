@@ -2,9 +2,10 @@
 title: "Analiza mieszkań na obszarze miasta Gdańsk"
 author: "Veronika Krasnianska, Olena Dovhopola"
 date: "`r Sys.Date()`"
-output: 
-  html_document:
-    theme: journal 
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    toc: true
 ---
 
 ```{r setup, include=FALSE}
@@ -34,6 +35,7 @@ library(tibble)
 library(skimr)
 library(leaflet.extras)
 library(ggridges)
+library(prettydoc)
 ```
 
 ## Wprowadzenie 
