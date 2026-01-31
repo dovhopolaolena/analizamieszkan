@@ -20,6 +20,7 @@ library(leaflet.extras)
 library(tidyr)
 library(gt)
 library(rstatix)
+library(ggcorplot)
 ```
 
 SPRAWDZANIE CZY SA DUPLICATY, FILTRACJA DANYCH PO MIASTU
@@ -84,7 +85,7 @@ Metraż mieszkania istotnie różnicuje poziom cen na rynku nieruchomości, zar�
 
 sPRAWDZANIE NA NIE SPÓJNOŚCI DANYCH I BLEDOW LOGICZNYCH Wyniki walidacji reguł twardych nie wykazały żadnych naruszeń spójności logicznej ani dziedzinowej. W związku z brakiem przypadków niespełniających przyjętych warunków, szczegółowe zestawienie tabelaryczne reguł walidacyjnych pominięto, ograniczając prezentację do opisu procedury. Przed imputacją przeprowadzono walidację twardą i miękką regułami logicznymi/dziedzinowymi. Walidacja twarda nie wykazała naruszeń. Reguły miękkie wykazały jedynie przypadki nietypowe, które pozostawiono w zbiorze jako obserwacje potencjalnie realistyczne. W konsekwencji zbiór uznano za spójny do dalszych etapów analizy
 
-```{r walid}
+```{r walidacja}
 # sprawdzanie występowania braków danych, żeby wiedzieć gdzie w regułach musimy dopuśćić wystapowanie NA
 miss_var_summary(dane_gdansk)
 # reguly: dla zmiennych, w których nie występowały braki danych, nie uwzględniano warunku is.na(). Dla pozostałych zmiennych braki danych pozostawiono i traktowano jako dopuszczalne
@@ -210,7 +211,7 @@ Ze względu na nielosowy charakter braków oraz ich koncentrację w wybranych zm
 
 ggmice
 
-```{r imp}
+```{r imputacja}
 methods <- make.method(dane_gdansk)
 methods[] <- ""
 
@@ -237,9 +238,7 @@ dane_imputed <- complete(imp, 1)
 
 ```
 
-srtrip plot dla danych po imputacji
-
-```{r imp_gr}
+```{r imp_graphs}
 plot(imp)
 
 densityplot(imp, ~ floor)
@@ -343,7 +342,7 @@ leaflet(dane_imputed) %>%
 
 ```
 
-```{r stat, results='asis', echo=FALSE}
+```{r staystyki, results='asis', echo=FALSE}
 cat_vars <- c(
   "type","ownership","hasParkingSpace","hasBalcony",
   "hasElevator","hasSecurity","hasStorageRoom"
@@ -452,60 +451,199 @@ kable(tab_od, format = "html", digits = 2, caption = "Statystyki opisowe (zmienn
 
 ```
 
-```{r}
-# miss_var_summary(dane_imputed)
+```{r testowanie hipotez}
 # „Kluczowe zmienne wykorzystywane w analizie wnioskowania statystycznego nie zawierały braków danych, co pozwoliło na przeprowadzenie testów bez dodatkowej redukcji próby
-# testy statystyczne 
-library(ggstatsplot)
+
+# HIPOTEZA 1 i 4 -> korelacje rang Spearmana
+h1_results <- dane_imputed %>%
+  cor_test(centreDistance, c(price, price_m2), method = "spearman")
+
+h1_results
+
+h4_results <- dane_imputed %>%
+  cor_test(squareMeters, c(price, price_m2), method = "spearman")
+
+h4_results
+
+# wybór kluczowych zmiennych do korelacji (H1 + H4)
+vars_cor <- dane_imputed %>% 
+  select(centreDistance, squareMeters, price, price_m2)
+cor_mat <- cor(vars_cor, method = "spearman", use = "complete.obs")
+
+ggcorrplot(cor_mat, lab = TRUE) +
+  scale_x_discrete(labels = label_vars) +
+  scale_y_discrete(labels = label_vars) +
+  scale_fill_gradient2(
+    low = "#2166ac",
+    mid = "white",
+    high = "#b2182b",
+    midpoint = 0,
+    limits = c(-1, 1)
+  ) +
+  labs(
+    title = "Korelacje rang Spearmana między kluczowymi cechami mieszkań"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 30, hjust = 1),
+    axis.title = element_blank(),
+    plot.title = element_text(face = "bold"),
+    legend.position = "none"
+  )
+
+
+# HIPOTEZA 2 -> test U Manna–Whitneya dla zmiennych binarnych
 
 ggbetweenstats(
   data = dane_imputed,
-  x = hasBalcony,
-  y = price,
-  title = "Wpływ balkonu na cenę mieszkania",
-  xlab = "Balkon",
-  ylab = "Cena (PLN)"
-) 
+  x = hasElevator,
+  y = price_m2,
+  type = "nonparametric",   #
+  conf.level = 0.95,
+  xlab = "Winda",
+  ylab = "Cena za m² [PLN]",
+  title = "Cena za m² a obecność windy",
+  caption = "Test U Manna–Whitneya"
+)
+
+# Rysunek przedstawia rozkład cen za m² mieszkań z windą i bez windy wraz z wynikami testu U Manna–Whitneya, ilustrując istotną statystycznie różnicę pomiędzy grupami
+
+h2_wilcox <-  dane_imputed %>%
+  select(price_m2, all_of(bin_vars)) %>%
+  pivot_longer(
+    cols = all_of(bin_vars),
+    names_to = "feature",
+    values_to = "group") %>%
+  filter(group %in% c("yes", "no")) %>%
+  group_by(feature) %>%
+  wilcox_test(price_m2 ~ group) %>%
+  add_significance("p") %>%
+  ungroup()
+
+h2_medians <-  dane_imputed %>%
+  select(price_m2, all_of(bin_vars)) %>%
+  pivot_longer(
+    cols = all_of(bin_vars),
+    names_to = "feature",
+    values_to = "group") %>%
+  filter(group %in% c("yes", "no")) %>%
+  group_by(feature, group) %>%
+  summarise(
+    n = n(),
+    median = median(price_m2),
+    .groups = "drop")
+
+h2_effect <-  dane_imputed %>%
+  select(price_m2, all_of(bin_vars)) %>%
+  pivot_longer(
+    cols = all_of(bin_vars),
+    names_to = "feature",
+    values_to = "group"
+  ) %>%
+  filter(group %in% c("yes", "no")) %>%
+  group_by(feature) %>%
+  wilcox_effsize(price_m2 ~ group)
+
+h2_results <- h2_wilcox %>%
+  left_join(h2_effect, by = "feature") %>%
+  left_join(h2_medians, by = "feature")
 
 
+h2_results <- h2_results %>%
+  adjust_pvalue(method = "BH")
+
+h2_pub <- h2_results %>%
+  select(feature,statistic, p, p.signif,effsize, magnitude,group, n, median) %>%
+  pivot_wider(
+    names_from = group,
+    values_from = c(n, median),
+    names_glue = "{.value}_{group}") %>%
+  mutate(
+    median_no  = round(median_no, 2),
+    median_yes = round(median_yes, 2),
+    effsize    = round(effsize, 3),
+    p          = signif(p, 4)) %>%
+  select(feature,n_no, n_yes,median_no, median_yes,statistic, p, p.signif,effsize, magnitude)
+h2_pub <- h2_pub %>%
+  mutate(feature = label_vars(feature))
+
+kable(
+  h2_pub,
+  format = "html",
+  caption = "H2: Porównanie ceny za m² między mieszkaniami z cechą standardu i bez (test U Manna–Whitneya)",
+  col.names = c(
+    "Cecha", "Ilość (bez)", "Ilość (z)",
+    "Mediana (bez)", "Mediana (z)",
+    "W", "p-value", "",
+    "r", "Wielkość efektu"
+  ),
+  digits = 2
+) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover")) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(7, bold = TRUE) %>%
+  scroll_box(width = "100%", height = "350px")
+
+bin_vars <- c("hasParkingSpace","hasBalcony","hasElevator","hasSecurity","hasStorageRoom")
+# 2) Wyniki korelacji Spearmana w grupach yes/no
+h3_results <- dane_imputed %>%
+  select(centreDistance, price_m2, all_of(bin_vars)) %>%
+  pivot_longer(
+    cols = all_of(bin_vars),
+    names_to = "feature",
+    values_to = "group"
+  ) %>%
+  filter(group %in% c("yes", "no")) %>%
+  group_by(feature, group) %>%
+  cor_test(centreDistance, price_m2, method = "spearman") %>%
+  ungroup()
+
+# 3) Tabela do raportu: 1 wiersz na cechę
+h3_pub <- h3_results %>%
+  transmute(
+    feature,
+    group,
+    rho = round(cor, 2),
+    p   = signif(p, 3)
+  ) %>%
+  pivot_wider(
+    names_from = group,
+    values_from = c(rho, p),
+    names_glue = "{.value}_{group}"
+  )
+h3_pub <- h3_pub %>%
+  mutate(feature = label_vars(feature))
+
+h3_results
+h3_pub
 
 
-alpha <- 0.05
+h3_table <- h3_pub %>%
+  mutate(
+    `Δρ` = round(rho_yes - rho_no, 2),
+    p_no  = ifelse(p_no  < 0.001, "<0.001", format(p_no,  digits = 3)),
+    p_yes = ifelse(p_yes < 0.001, "<0.001", format(p_yes, digits = 3))
+  ) %>%
+  select(
+    Cecha = feature,
+    `ρ (bez cechy)` = rho_no,
+    `ρ (z cechą)`   = rho_yes,
+    `Δρ`,
+    `p (bez cechy)` = p_no,
+    `p (z cechą)`   = p_yes
+  )
 
-h1_price <- cor.test(dane_imputed$centreDistance, dane_imputed$price, method = "spearman")
-h1_pm2   <- cor.test(dane_imputed$centreDistance, dane_imputed$price_m2, method = "spearman")
-
-h1_price
-h1_pm2
-
-h4_price <- cor.test(dane_imputed$squareMeters, dane_imputed$price, method = "spearman")
-h4_pm2   <- cor.test(dane_imputed$squareMeters, dane_imputed$price_m2, method = "spearman")
-
-h4_price
-h4_pm2
-
-
-
-wilcox.test(price_m2 ~ hasBalcony,
-            data = dane_imputed)
-wilcox.test(price_m2 ~ hasParkingSpace,
-            data = dane_imputed)
-wilcox.test(price_m2 ~ hasElevator,
-            data = dane_imputed)
-wilcox.test(price_m2 ~ hasSecurity,
-            data = dane_imputed)
-wilcox.test(price_m2 ~ hasStorageRoom,
-            data = dane_imputed)
+kable(
+  h3_table,
+  format = "html",
+  escape = FALSE,
+  caption = "H3: Korelacja Spearmana (odległość od centrum vs cena za m²) w grupach standardu"
+) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed")) %>%
+  column_spec(2:4, bold = TRUE)
 
 
-
-
-
-
-
-
-
-
+```
 
 
 
