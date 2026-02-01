@@ -831,21 +831,21 @@ df <- dane_imputed %>%
 
 m0 <- lm(ln_price_m2 ~ ln_centre, data = df)
 summary(m0)
-coeftest(m0, vcov = vcovHC(m_final, "HC1"))
+coeftest(m0, vcov = vcovHC(m0, "HC1"))
 
 m1 <- lm(ln_price_m2 ~ ln_centre + ln_area + rooms +buildYear + floor + floorCount,data = df)
 summary(m1)
-coeftest(m1, vcov = vcovHC(m_final, "HC1"))
+coeftest(m1, vcov = vcovHC(m1, "HC1"))
 vif(m1)
 
 m2 <- lm(ln_price_m2 ~ ln_centre + ln_area + rooms +buildYear + floor + floorCount +ln_poi + schoolDistance + restaurantDistance,data =df)
 summary(m2)
-coeftest(m2, vcov = vcovHC(m_final, "HC1"))
+coeftest(m2, vcov = vcovHC(m2, "HC1"))
 vif(m2)
 
 m3 <- lm(ln_price_m2 ~ ln_centre + ln_area + rooms +buildYear + floor + floorCount +ln_poi + schoolDistance + restaurantDistance+hasElevator + hasBalcony + hasSecurity +hasStorageRoom + hasParkingSpace,data = df)
 summary(m3)
-coeftest(m3, vcov = vcovHC(m_final, "HC1"))
+coeftest(m3, vcov = vcovHC(m3, "HC1"))
 vif(m3)
 
 m4 <- lm(ln_price_m2 ~ ln_centre + ln_area + rooms +buildYear + floor + floorCount +ln_poi + schoolDistance + restaurantDistance+hasElevator + hasSecurity + hasStorageRoom +ln_centre:hasElevator +ln_centre:hasStorageRoom,data = df)
