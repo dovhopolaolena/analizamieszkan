@@ -28,7 +28,27 @@ library(sandwich)
 library(lmtest)
 ```
 
-SPRAWDZANIE CZY SA DUPLICATY, FILTRACJA DANYCH PO MIASTU
+Rynek nieruchomości mieszkaniowych w dużych miastach charakteryzuje się wysokim stopniem złożoności oraz znacznym zróżnicowaniem cen i cech oferowanych lokali. Na poziom cen mieszkań wpływają jednocześnie czynniki lokalizacyjne, strukturalne oraz związane ze standardem technicznym nieruchomości, a ich oddziaływanie często ma charakter nieliniowy i wzajemnie powiązany. W konsekwencji analiza rynku mieszkaniowego wymaga zastosowania zarówno metod eksploracyjnych, jak i narzędzi analizy statystycznej oraz ekonometrycznej.
+
+Miasto Gdańsk, jako jeden z głównych ośrodków miejskich w Polsce, stanowi interesujący obszar badań ze względu na dynamiczny rozwój urbanistyczny, zróżnicowaną strukturę przestrzenną oraz silne kontrasty pomiędzy centralnymi i peryferyjnymi lokalizacjami. Istotną rolę w kształtowaniu cen mieszkań odgrywa tu dostępność infrastruktury miejskiej, bliskość centrum, zagęszczenie punktów usługowych oraz standard techniczny budynków i lokali. Celem niniejszego projektu jest empiryczna analiza rynku mieszkań w Gdańsku z wykorzystaniem metod analizy danych dostępnych w środowisku R. Badanie obejmuje eksploracyjną analizę danych, ocenę rozkładów kluczowych zmiennych, identyfikację zależności korelacyjnych oraz zastosowanie testów nieparametrycznych i modeli regresji hedonicznej. Szczególny nacisk położono na ocenę wpływu lokalizacji (mierzonej m.in. odległością od centrum miasta) oraz standardu technicznego mieszkań na poziom cen, zarówno całkowitych, jak i cen za metr kwadratowy.
+
+Celem analizy jest ocena wpływu lokalizacji oraz standardu technicznego mieszkań na poziom cen na rynku mieszkaniowym w Gdańsku. W szczególności badanie koncentruje się na relacji pomiędzy odległością mieszkania od centrum miasta a ceną oraz na sprawdzeniu, czy wybrane cechy standardu technicznego modyfikują tę zależność. W związku z tym sformułowano następujące pytania badawcze i odpowiadające im hipotezy:
+
+H1. Wzrost odległości mieszkania od centrum miasta wiąże się ze spadkiem cen mieszkań oraz cen za metr kwadratowy. Hipoteza ta odzwierciedla klasyczne podejście ekonomiczne, zgodnie z którym atrakcyjność lokalizacji centralnych znajduje odzwierciedlenie w wyższych cenach nieruchomości.
+
+H2. Mieszkania posiadające wybrane cechy wyższego standardu technicznego (takie jak winda, ochrona, miejsce parkingowe, balkon czy komórka lokatorska) osiągają istotnie wyższe ceny za metr kwadratowy niż mieszkania pozbawione tych udogodnień. Hipoteza ta testowana jest z wykorzystaniem nieparametrycznych testów porównawczych, ze względu na skośne rozkłady cen.
+
+H3. Siła i kierunek zależności pomiędzy odległością od centrum a ceną za metr kwadratowy różnią się w zależności od standardu technicznego mieszkania. Hipoteza ta zakłada, że standard techniczny może modyfikować znaczenie lokalizacji, co badane jest poprzez porównanie korelacji w grupach mieszkań o różnym standardzie oraz poprzez zastosowanie interakcji w modelu regresji hedonicznej.
+
+H4. Metraż mieszkania jest dodatnio związany z ceną całkowitą oraz jednocześnie ujemnie związany z ceną za metr kwadratowy. Hipoteza ta odzwierciedla efekt skali, zgodnie z którym większe mieszkania są droższe w ujęciu bezwzględnym, lecz tańsze w przeliczeniu na jednostkę powierzchni.
+
+###Przygotowanie danych do analizy###
+
+W pierwszym kroku wczytano zbiór danych , a następnie ograniczono obserwacje wyłącznie do mieszkań zlokalizowanych w mieście Gdańsk. Następnie sprawdzono występowanie duplikatów rekordów przy użyciu funkcji. W analizowanym podzbiorze nie stwierdzono duplikatów, co oznacza, że każda obserwacja odpowiada unikalnej ofercie.
+
+Kolejnym etapem było wstępne uporządkowanie struktury danych poprzez usunięcie zmiennych, które nie są wykorzystywane w dalszej analizie (id, condition, buildingMaterial, city). Dodatkowo wszystkie zmienne zapisane jako tekst (character) zostały przekonwertowane do typu faktor , co ułatwia późniejszą analizę zmiennych jakościowych oraz modelowanie z wykorzystaniem zmiennych kategorycznych.
+
+Na końcu utworzono zmienną pochodną price_m2, definiowaną jako cena mieszkania w przeliczeniu na metr kwadratowy (price / squareMeters). Dzięki temu w analizie możliwe jest równoległe badanie cen w ujęciu całkowitym (price) oraz w ujęciu jednostkowym (price_m2), co jest szczególnie istotne w kontekście porównań mieszkań o różnej powierzchni.
 
 ```{r wstep}
 dane<-read_csv("apartments_pl_2024_06.csv")
@@ -71,26 +91,51 @@ var_labels <- as.list(var_labels)
 label_vars <- function(x) {
   sapply(as.character(x), function(v) var_labels[[v]])
 }
-
-# mapa mieszka -> NIE WIEM W KTÓRYM MOMENCIE NAJLEPIEJ JĄ DODAĆ
-leaflet(dane_gdansk) |>
-  addTiles() |>
-  addCircleMarkers(
-    lng = ~longitude,
-    lat = ~latitude,
-    radius = 3,
-    stroke = FALSE,
-    fillOpacity = 0.4
-  )
 ```
 
-#### **Hipoteza główna (H):**
+###Kontrola jakości danych i reguły walidacyjne###
 
-Apartamenty o większym metrażu osiągają wyższe ceny całkowite, ale mieszkania o mniejszym metrażu mają wyższe ceny za metr kwadratowy.
+Przed przeprowadzeniem dalszych analiz statystycznych i ekonometrycznych dokonano oceny jakości danych oraz identyfikacji potencjalnych niespójności logicznych w zbiorze. W pierwszym kroku przeanalizowano występowanie braków danych dla poszczególnych zmiennych. Pozwoliło to określić, w których zmiennych brakujące obserwacje występują i powinny zostać dopuszczone w regułach walidacyjnych.
 
-Metraż mieszkania istotnie różnicuje poziom cen na rynku nieruchomości, zarówno w ujęciu ceny całkowitej, jak i ceny za metr kwadratowy.
+**Reguły twarde**
 
-sPRAWDZANIE NA NIE SPÓJNOŚCI DANYCH I BLEDOW LOGICZNYCH Wyniki walidacji reguł twardych nie wykazały żadnych naruszeń spójności logicznej ani dziedzinowej. W związku z brakiem przypadków niespełniających przyjętych warunków, szczegółowe zestawienie tabelaryczne reguł walidacyjnych pominięto, ograniczając prezentację do opisu procedury. Przed imputacją przeprowadzono walidację twardą i miękką regułami logicznymi/dziedzinowymi. Walidacja twarda nie wykazała naruszeń. Reguły miękkie wykazały jedynie przypadki nietypowe, które pozostawiono w zbiorze jako obserwacje potencjalnie realistyczne. W konsekwencji zbiór uznano za spójny do dalszych etapów analizy
+Reguły twarde opisują warunki, które muszą być spełnione, aby obserwacja była uznana za logicznie poprawną. Obejmują one przede wszystkim ograniczenia zakresów wartości zmiennych oraz podstawowe zależności pomiędzy cechami mieszkań. Dla zmiennych, w których stwierdzono występowanie braków danych, reguły zostały skonstruowane w taki sposób, aby wartości NA były traktowane jako dopuszczalne.
+
+W ramach reguł twardych zweryfikowano m.in.:
+
+-   powierzchnię mieszkania, ograniczając ją do realistycznego zakresu (0–250 m²),
+
+-   liczbę pokoi, przyjmując wartości od 1 do 8,
+
+-   spójność metrażu i liczby pokoi, zakładając minimalną i maksymalną powierzchnię przypadającą na jeden pokój,
+
+-   relacje pomiędzy piętrem a liczbą kondygnacji w budynku,
+
+-   rok budowy budynku, ograniczony do lat 1850–2025,
+
+-   odległości od punktów usługowych i centrum miasta, wykluczając wartości ujemne oraz skrajnie wysokie,
+
+-   liczbę punktów POI w otoczeniu mieszkania,
+
+-   poprawność kategorii zmiennych jakościowych, takich jak typ budynku, forma własności oraz obecność udogodnień,
+
+-   realistyczny zakres cen za metr kwadratowy, ograniczony do przedziału 8 000–35 000 PLN/m².
+
+Zastosowanie reguł twardych pozwoliło na identyfikację obserwacji naruszających podstawowe założenia logiczne lub ekonomiczne. P
+
+**Reguły miękkie** (
+
+Oprócz reguł twardych zdefiniowano również reguły miękkie, które nie dyskwalifikują obserwacji, lecz wskazują na potencjalnie nietypowe lub mało prawdopodobne kombinacje cech. Reguły te mają charakter heurystyczny i opierają się na wiedzy domenowej dotyczącej rynku nieruchomości.
+
+Do reguł miękkich zaliczono m.in.:
+
+-   budynki sprzed 1945 roku o bardzo dużej liczbie kondygnacji,
+
+-   brak windy w wysokich budynkach wybudowanych po 1995 roku,
+
+-   nietypowe relacje pomiędzy metrażem a liczbą pokoi (np. bardzo małe mieszkania z dużą liczbą pokoi lub bardzo duże mieszkania jednopokojowe).
+
+Reguły miękkie służą wyłącznie do sygnalizowania obserwacji odstających pod względem logicznym i nie są podstawą do automatycznego usuwania danych. Ich celem jest wsparcie decyzji analitycznych na dalszych etapach analizy.
 
 ```{r walidacja}
 # sprawdzanie występowania braków danych, żeby wiedzieć gdzie w regułach musimy dopuśćić wystapowanie NA
@@ -169,7 +214,9 @@ summary(out_soft)$fails
 # Dla zmiennych, w których nie występowały braki danych, nie uwzględniano warunku is.na(). Dla pozostałych zmiennych braki danych pozostawiono i traktowano jako dopuszczalne
 ```
 
-dentyfikacja outlierów metodą IQR
+W kolejnym etapie analizy przeprowadzono identyfikację wartości odstających dla zmiennych numerycznych z wykorzystaniem metody opartej na rozstępie międzykwartylowym (IQR). Do analizy wybrano wyłącznie zmienne o charakterze liczbowym, co pozwoliło na jednolite zastosowanie kryterium statystycznego.
+
+Dla każdej zmiennej obliczono pierwszy kwartyl (Q1), trzeci kwartyl (Q3) oraz wartość IQR, a następnie określono odsetek obserwacji wykraczających poza przedział [Q1−1,5⋅IQR,Q3+1,5⋅IQR]. Wynik przedstawiono jako procent obserwacji odstających w danej zmiennej.
 
 ```{r iqr}
 # wybór zmiennych numerycznych
@@ -198,9 +245,9 @@ kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 
 ```
 
-2.1 Braki danych W celu określenia mechanizmu braków danych przeprowadzono test Little MCAR. Wynik testu był istotny statystycznie (χ² = 2374.25, df = 569, p \< 0.001), co pozwala odrzucić hipotezę o całkowicie losowym charakterze braków (MCAR). Oznacza to, że zmienne w zbiorze zawierają braki zależne od innych informacji (MAR) lub od wartości samej zmiennej (MNAR). Braki danych nie mają więc charakteru losowego i wymagają zastosowania zaawansowanej metody imputacji, takiej jak MICE. floor, rokbudowy, czy jest winda, odleglosc od uni Z brakami danych do uzupelnienia. Type i reszta zostaje z brakami danych, bo nie oplaca sie -\> jak to uzasadnić?
+Najwięcej wartości odstających dotyczy zmiennych przestrzennych i strukturalnych (liczba kondygnacji, POI, odległości), co wynika z naturalnego zróżnicowania zabudowy i lokalizacji w Gdańsku. Zmienne cenowe, zwłaszcza cena za m², charakteryzują się niskim udziałem outlierów, co potwierdza ich stabilność analityczną. Wartości odstające mają charakter merytoryczny, dlatego nie zostały usunięte z analizy.
 
-mice dla zmiennych numerycznych buduje model liniowy, dla kategorzycznych logitowy
+##Analiza braków danych i imputacja W zbiorze danych przeprowadzono analizę braków, której celem było określenie ich zakresu, struktury oraz mechanizmu powstawania
 
 ```{r t_NA}
 mcar_test(dane_gdansk)
@@ -210,13 +257,11 @@ gg_miss_upset(dane_gdansk)
 missing_pattern(dane_gdansk)
 ```
 
-W zbiorze danych przeprowadzono analizę braków, której celem było określenie ich zakresu, struktury oraz mechanizmu powstawania. Łączny odsetek braków wyniósł około 3%, jednak nie były one równomiernie rozłożone między zmiennymi. Najwięcej braków odnotowano w zmiennych type, floor oraz buildYear, co wskazuje, że dotyczą one głównie informacji opisujących cechy budynku. Pozostałe zmienne charakteryzowały się znikomym poziomem braków.
+Łączny odsetek braków wyniósł około 3%, jednak nie były one równomiernie rozłożone między zmiennymi. Najwięcej braków odnotowano w zmiennych type, floor oraz buildYear, co wskazuje, że dotyczą one głównie informacji opisujących cechy budynku. Pozostałe zmienne charakteryzowały się znikomym poziomem braków.
 
-Wizualizacje braków, w tym mapy ciepła oraz wykresy typu vis_miss i UpSet Plot, wykazały istnienie wyraźnych wzorców współwystępowania brakujących wartości, co sugeruje, że nie mają one charakteru przypadkowego.
+Wizualizacje braków oraz wykresy typu vis_miss i UpSet Plot, wykazały istnienie wyraźnych wzorców współwystępowania brakujących wartości, co sugeruje, że nie mają one charakteru przypadkowego.
 
 Ze względu na nielosowy charakter braków oraz ich koncentrację w wybranych zmiennych, do uzupełnienia danych zastosowano metodę imputacji wielokrotnej MICE. Metoda ta pozwala odtworzyć brakujące wartości w sposób zgodny z zależnościami występującymi w zbiorze, ograniczając ryzyko zniekształcenia wyników dalszej analizy. Zmienne o minimalnej liczbie braków pozostawiono bez imputacji, gdyż ich wpływ na modele jest pomijalny. Dzięki przeprowadzonej imputacji uzyskano kompletny i spójny zbiór danych, odpowiedni do kolejnych etapów modelowania.
-
-ggmice
 
 ```{r imputacja}
 methods <- make.method(dane_gdansk)
@@ -245,6 +290,10 @@ dane_imputed <- complete(imp, 1)
 
 ```
 
+Braki danych uzupełniono metodą wielokrotnej imputacji MICE, dobierając modele imputacji do charakteru zmiennych (PMM dla zmiennych liczbowych, regresja logistyczna dla binarnej zmiennej hasElevator). Macierz predyktorów ograniczono wyłącznie do zmiennych merytorycznie uzasadnionych, aby uniknąć sztucznych zależności i nadmiernego przeuczenia imputacji. Zmienna type została celowo wyłączona z procesu imputacji. Ostateczny zbiór danych uzyskano po pięciu imputacjach, wybierając jedną kompletną realizację do dalszej analizy.
+
+TUT to szto u tiebia bylo
+
 ```{r imp_graphs}
 plot(imp)
 
@@ -263,7 +312,8 @@ stripplot(imp, collegeDistance ~ .imp, pch = 20, cex = 1)
 
 
 ```
-dane jakosciowe Rozdzial X : analiza opisowa i wizualizacja zmiennych jakościowych Wykresy i statystyki opisowe do świąt
+
+##Analiza opisowa i wizualizacja zmiennych jakościowych W niniejszym podrozdziale przedstawiono wizualną analizę zależności pomiędzy cenami mieszkań a wybranymi cechami strukturalnymi, lokalizacyjnymi oraz elementami wyposażenia. Celem tej części analizy eksploracyjnej jest identyfikacja ogólnych wzorców i zróżnicowań cenowych, które mogą stanowić podstawę do dalszych analiz statystycznych i modelowych.
 
 ```{r wykresy}
 # # metraż a cena
@@ -284,7 +334,11 @@ dane_imputed %>%
     y = "Cena [PLN]"
   ) +
   theme_minimal()
+```
 
+Ceny mieszkań rosną wraz z przechodzeniem do wyższych przedziałów metrażu, przy czym rozkłady w poszczególnych grupach wykazują rosnącą zmienność. Największe zróżnicowanie cen obserwowane jest dla mieszkań o dużej powierzchni.
+
+```{r wykresy}
 dane_imputed %>%
   mutate(
     centre_bin = cut(
@@ -302,6 +356,11 @@ dane_imputed %>%
     y = "Cena za m² [PLN]"
   ) +
   theme_minimal()
+```
+
+Wykres pokazuje wyraźny spadek mediany ceny za metr kwadratowy wraz ze wzrostem odległości od centrum miasta. Jednocześnie bliższe lokalizacje charakteryzują się większym rozrzutem cen, co sugeruje większą heterogeniczność ofert w centralnych obszarach.
+
+```{r wykresy}
 dane_imputed %>%
   filter(!is.na(floor), hasElevator %in% c("yes","no"))%>%
   mutate(
@@ -318,6 +377,12 @@ dane_imputed %>%
     fill = "Winda"
   ) +
   theme_minimal()
+
+```
+
+Cena za metr kwadratowy rośnie wraz z numerem piętra, szczególnie w budynkach wyposażonych w windę. Różnice pomiędzy lokalami z windą i bez windy stają się bardziej widoczne na wyższych kondygnacjach.
+
+```{r wykresy}
 ggplot(dane_imputed, aes(x = hasBalcony, y = price_m2)) +
   geom_violin(fill = "#9ecae1", alpha = 0.7, trim = TRUE) +
   geom_boxplot(width = 0.1, fill = "white") +
@@ -328,10 +393,11 @@ ggplot(dane_imputed, aes(x = hasBalcony, y = price_m2)) +
     y = "Cena za m² [PLN]"
   ) +
   theme_minimal()
-###  Różnice cen za m² pomiędzy mieszkaniami z balkonem i bez balkonu są relatywnie niewielkie w porównaniu z innymi czynnikami ### 
+```
 
+Mieszkania z balkonem charakteryzują się wyższą medianą ceny za metr kwadratowy w porównaniu do lokali bez balkonu. Rozkłady wskazują również na większą zmienność cen w grupie mieszkań z balkonem. Różnice cen za m² pomiędzy mieszkaniami z balkonem i bez balkonu są relatywnie niewielkie w porównaniu z innymi czynnikami
 
-# ETU TOCZNO OSZTAWLIAJEM
+```{r wykresy}
 pal <- colorNumeric("viridis", domain = dane_imputed$price_m2, na.color = "transparent")
 
 leaflet(dane_imputed) %>%
@@ -348,6 +414,8 @@ leaflet(dane_imputed) %>%
             title = "Cena za m² [PLN]", labFormat = labelFormat())
 
 ```
+
+Zastosowanie mechanizmu klastrowania markerów umożliwia czytelne przedstawienie rozmieszczenia ofert w obszarach o dużym zagęszczeniu punktów. Wizualizacja ta pozwala na łatwiejszą identyfikację rejonów o wysokiej liczbie ogłoszeń oraz ocenę, czy wysokie i niskie ceny występują w sposób przestrzennie skupiony.
 
 ```{r staystyki, results='asis', echo=FALSE}
 cat_vars <- c(
@@ -385,14 +453,23 @@ tab_bin_final <- tab_bin %>% select(variable, n_nonmiss, yes_n, yes_pct)
 
 tab_cat_meta <- tab_cat_meta %>% mutate(variable = label_vars(variable))
 tab_bin <- tab_bin_final %>% mutate(variable = label_vars(variable))
+```
 
+```{r staystyki, results='asis', echo=FALSE}
 kable(tab_cat_meta, format = "html", digits = 2, caption = "Statystyki opisowe zmiennych jakościowych", col.names = c("Zmienna", "Liczba obserwacji", "Liczba braków", "% kompletności", "Liczba kategorii")) %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
 
+Tabela przedstawia liczbę obserwacji, braki danych, poziom kompletności oraz liczbę kategorii dla zmiennych jakościowych. Zmienne cechują się wysoką kompletnością, a liczba kategorii jest zgodna z ich charakterem, co wskazuje na dobrą jakość danych.
+
+```{r staystyki, results='asis', echo=FALSE}
 kable(tab_bin_final,format = "html",digits = 2,caption = "Struktura zmiennych binarnych – udział odpowiedzi „tak”",col.names = c("Zmienna","Liczba obserwacji","Liczba „tak”","% „tak”")) %>%
   kable_styling(full_width = FALSE,bootstrap_options = c("striped", "hover"))
-# =====================================================================================================
+```
 
+Zestawienie prezentuje udział odpowiedzi pozytywnych w zmiennych binarnych opisujących wyposażenie mieszkań. Widoczne zróżnicowanie częstości występowania poszczególnych udogodnień wskazuje na ich potencjalną rolę w dalszej analizie ofert.
+
+```{r staystyki, results='asis', echo=FALSE}
 # zmienne dyskretne 
 tab_disc <- dane_imputed %>%
   select(c("rooms", "floor", "floorCount", "buildYear", "poiCount")) %>%
@@ -448,34 +525,48 @@ tab_od <- dane_imputed %>%
     max  = `numeric.p100`
   ) %>%
   mutate(complete_rate = round(complete_rate * 100, 1), zmienna = label_vars(zmienna))
-
-kable(tab_disc, format = "html", digits = 2, caption = "Statystyki opisowe (zmienne dyscretne)", col.names = c("Zmienna", "% kompletności", "Średnia", "Odch. std.", "Min", "Q1", "Mediana", "Q3", "Max")) %>%
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-kable(tab_num, format = "html", digits = 2, caption = "Statystyki opisowe (zmienne numeryczne)", col.names = c("Zmienna", "% kompletności", "Średnia", "Odch. std.", "Min", "Q1", "Mediana", "Q3", "Max")) %>%
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-kable(tab_od, format = "html", digits = 2, caption = "Statystyki opisowe (zmienne odlegościowe)", col.names = c("Zmienna", "% kompletności", "Średnia", "Odch. std.", "Min", "Q1", "Mediana", "Q3", "Max")) %>%
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
-
 ```
 
+```{r staystyki, results='asis', echo=FALSE}
+kable(tab_disc, format = "html", digits = 2, caption = "Statystyki opisowe (zmienne dyscretne)", col.names = c("Zmienna", "% kompletności", "Średnia", "Odch. std.", "Min", "Q1", "Mediana", "Q3", "Max")) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+
+Tabela prezentuje statystyki opisowe zmiennych dyskretnych, które cechują się niemal pełną kompletnością danych. Liczba pokoi i piętro mają niewielką zmienność i skoncentrowane rozkłady wokół wartości typowych dla mieszkań miejskich. Liczba kondygnacji oraz rok budowy wykazują większe zróżnicowanie, co odzwierciedla heterogeniczność zabudowy. Zmienna opisująca liczbę punktów POI w pobliżu charakteryzuje się bardzo dużym rozrzutem i prawostronną asymetrią, wskazując na silne zróżnicowanie lokalizacyjne ofert.
+
+```{r staystyki, results='asis', echo=FALSE}
+kable(tab_num, format = "html", digits = 2, caption = "Statystyki opisowe (zmienne numeryczne)", col.names = c("Zmienna", "% kompletności", "Średnia", "Odch. std.", "Min", "Q1", "Mediana", "Q3", "Max")) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+
+Tabela przedstawia statystyki opisowe zmiennych ilościowych i dyskretnych, dla których nie występują braki danych. Rozkład powierzchni mieszkań jest umiarkowanie zróżnicowany i prawostronnie asymetryczny. Ceny całkowite oraz ceny za metr kwadratowy charakteryzują się dużą zmiennością i wyraźną prawostronną asymetrią, co wskazuje na istotny wpływ drogich ofert na wartości średnie i uzasadnia dalszą analizę z wykorzystaniem miar pozycyjnych.
+
+```{r staystyki, results='asis', echo=FALSE}
+kable(tab_od, format = "html", digits = 2, caption = "Statystyki opisowe (zmienne odlegościowe)", col.names = c("Zmienna", "% kompletności", "Średnia", "Odch. std.", "Min", "Q1", "Mediana", "Q3", "Max")) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+
+Tabela przedstawia statystyki opisowe zmiennych odległościowych, które charakteryzują się niemal pełną kompletnością danych. Odległość od centrum wykazuje największe zróżnicowanie spośród analizowanych zmiennych, co odzwierciedla przestrzenne rozproszenie ofert. Odległości do podstawowych usług i obiektów użyteczności publicznej są relatywnie niewielkie i skoncentrowane wokół niskich wartości, jednak w większości przypadków widoczna jest prawostronna asymetria rozkładów, wskazująca na obecność ofert położonych znacznie dalej od infrastruktury.
+
+h Wnioskowanie statystyczne
+
+W celu formalnej weryfikacji postawionych hipotez badawczych przeprowadzono wnioskowanie statystyczne z wykorzystaniem metod nieparametrycznych, adekwatnych do charakteru danych oraz obserwowanych rozkładów zmiennych. Analiza obejmuje ocenę zależności pomiędzy kluczowymi cechami mieszkań a ceną całkowitą oraz ceną za metr kwadratowy, a także porównanie poziomu cen pomiędzy grupami mieszkań różniącymi się standardem technicznym.
+
+Zastosowano współczynnik korelacji rang Spearmana do badania zależności pomiędzy zmiennymi ilościowymi, takimi jak odległość od centrum oraz metraż mieszkania, a poziomem cen. Dodatkowo, w celu oceny różnic cenowych pomiędzy mieszkaniami z określonymi udogodnieniami a mieszkaniami ich pozbawionymi, wykorzystano test U Manna–Whitneya. Wyniki analiz zaprezentowano zarówno w formie tabelarycznej, jak i graficznej, co umożliwia ocenę siły, kierunku oraz istotności statystycznej badanych zależności.
+
 ```{r testowanie hipotez}
-# „Kluczowe zmienne wykorzystywane w analizie wnioskowania statystycznego nie zawierały braków danych, co pozwoliło na przeprowadzenie testów bez dodatkowej redukcji próby
-# HIPOTEZA 1 i 4 -> korelacje rang Spearmana
 h1_results <- dane_imputed %>%
   cor_test(centreDistance, c(price, price_m2), method = "spearman")
-
 h1_results
-
 h4_results <- dane_imputed %>%
   cor_test(squareMeters, c(price, price_m2), method = "spearman")
-
 h4_results
-
-# wybór kluczowych zmiennych do korelacji (H1 + H4)
 vars_cor <- dane_imputed %>% 
   select(centreDistance, squareMeters, price, price_m2)
 cor_mat <- cor(vars_cor, method = "spearman", use = "complete.obs")
+```
 
+```{r testowanie hipotez}
 ggcorrplot(cor_mat, lab = TRUE) +
   scale_x_discrete(labels = label_vars) +
   scale_y_discrete(labels = label_vars) +
@@ -496,24 +587,27 @@ ggcorrplot(cor_mat, lab = TRUE) +
     plot.title = element_text(face = "bold"),
     legend.position = "none"
   )
+```
 
+Odległość od centrum jest słabo, ale jednoznacznie ujemnie skorelowana z ceną całkowitą i ceną za m², natomiast metraż jest silnie dodatnio skorelowany z ceną całkowitą i ujemnie z ceną za m². Potwierdza to klasyczne mechanizmy rynkowe i uzasadnia dalsze modelowanie log-cen.
 
-# HIPOTEZA 2 -> test U Manna–Whitneya dla zmiennych binarnych
-
+```{r testowanie hipotez}
 ggbetweenstats(
   data = dane_imputed,
   x = hasElevator,
   y = price_m2,
-  type = "nonparametric",   #
+  type = "nonparametric",   
   conf.level = 0.95,
   xlab = "Winda",
   ylab = "Cena za m² [PLN]",
   title = "Cena za m² a obecność windy",
   caption = "Test U Manna–Whitneya"
 )
+```
 
-# Rysunek przedstawia rozkład cen za m² mieszkań z windą i bez windy wraz z wynikami testu U Manna–Whitneya, ilustrując istotną statystycznie różnicę pomiędzy grupami
+Rysunek przedstawia rozkład cen za m² mieszkań z windą i bez windy wraz z wynikami testu U Manna–Whitneya, ilustrując istotną statystycznie różnicę pomiędzy grupami
 
+```{r testowanie hipotez}
 h2_wilcox <-  dane_imputed %>%
   select(price_m2, all_of(bin_vars)) %>%
   pivot_longer(
@@ -554,10 +648,6 @@ h2_results <- h2_wilcox %>%
   left_join(h2_effect, by = "feature") %>%
   left_join(h2_medians, by = "feature")
 
-
-h2_results <- h2_results %>%
-  adjust_pvalue(method = "BH")
-
 h2_pub <- h2_results %>%
   select(feature,statistic, p, p.signif,effsize, magnitude,group, n, median) %>%
   pivot_wider(
@@ -572,7 +662,9 @@ h2_pub <- h2_results %>%
   select(feature,n_no, n_yes,median_no, median_yes,statistic, p, p.signif,effsize, magnitude)
 h2_pub <- h2_pub %>%
   mutate(feature = label_vars(feature))
+```
 
+```{r testowanie hipotez}
 kable(
   h2_pub,
   format = "html",
@@ -589,9 +681,11 @@ kable(
   column_spec(1, bold = TRUE) %>%
   column_spec(7, bold = TRUE) %>%
   scroll_box(width = "100%", height = "350px")
+```
 
-bin_vars <- c("hasParkingSpace","hasBalcony","hasElevator","hasSecurity","hasStorageRoom")
-# 2) Wyniki korelacji Spearmana w grupach yes/no
+Mieszkania wyposażone w wybrane elementy standardu (winda, ochrona, komórka lokatorska) osiągają istotnie wyższe ceny za m² niż mieszkania bez tych udogodnień. Wielkości efektu są niewielkie, ale statystycznie istotne, co wskazuje na systematyczny, choć umiarkowany wpływ standardu.
+
+```{r testowanie hipotez}
 h3_results <- dane_imputed %>%
   select(centreDistance, price_m2, all_of(bin_vars)) %>%
   pivot_longer(
@@ -638,34 +732,29 @@ h3_table <- h3_pub %>%
     `p (bez cechy)` = p_no,
     `p (z cechą)`   = p_yes
   )
+```
 
+```{r testowanie hipotez}
 kable(
   h3_table,
   format = "html",
   escape = FALSE,
-  caption = "H3: Korelacja Spearmana (odległość od centrum vs cena za m²) w grupach standardu"
+  caption = "H3: H3: Zależność odległości od centrum i ceny za m² w grupach standardu (korelacja Spearmana)"
 ) %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed")) %>%
   column_spec(2:4, bold = TRUE)
-kable(
-  h3_pub,
-  format = "html",
-  caption = "H3: Zależność odległości od centrum i ceny za m² w grupach standardu (korelacja Spearmana)",
-  col.names = c(
-    "Cecha",
-    "ρ (bez)",
-    "ρ (z)",
-    "p (bez)",
-    "p (z)"
-  ),
-  digits = 2
-) %>%
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover")) %>%
-  column_spec(1, bold = TRUE)
-
-
 ```
 
+Siła zależności między odległością od centrum a ceną za m² różni się pomiędzy grupami standardu, jednak różnice te są niewielkie i nie zawsze istotne statystycznie. Sugeruje to, że standard techniczny wpływa głównie na poziom ceny, a nie na siłę efektu lokalizacji.
+ 
+#MODELOWANIE
+Regresja liniowa stanowi jedno z podstawowych narzędzi analizy ekonometrycznej wykorzystywanych do badania zależności pomiędzy cechami nieruchomości a ich ceną. W kontekście rynku mieszkaniowego modele regresji hedonicznej pozwalają na dekompozycję ceny mieszkania na wkłady poszczególnych atrybutów, takich jak lokalizacja, cechy strukturalne lokalu oraz elementy standardu technicznego.
+
+Proces budowy modeli regresji w niniejszym badaniu ma charakter sekwencyjny. W pierwszym kroku estymowany jest model bazowy, uwzględniający wyłącznie kluczowy czynnik lokalizacyjny – odległość mieszkania od centrum miasta. Następnie specyfikacja modelu jest stopniowo rozszerzana o zmienne strukturalne (m.in. metraż, liczba pokoi, rok budowy, piętro), zmienne opisujące otoczenie oraz cechy standardu technicznego. Takie podejście umożliwia ocenę przyrostu dopasowania modelu oraz zmian istotności poszczególnych parametrów wraz z rozszerzaniem zbioru zmiennych objaśniających.
+
+Ze względu na obserwowaną skośność rozkładów cen oraz części zmiennych objaśniających, zastosowano transformacje logarytmiczne, co pozwala na stabilizację wariancji reszt oraz interpretację współczynników w kategoriach elastyczności. Dodatkowo, w wybranych specyfikacjach uwzględniono składniki interakcyjne, których celem było sprawdzenie, czy standard techniczny mieszkań modyfikuje siłę wpływu lokalizacji na poziom cen.
+
+Ocena jakości modeli opiera się na analizie miar dopasowania (R² i skorygowanego R²), błędu standardowego reszt, kryteriów informacyjnych oraz diagnostyce założeń modelu, w tym współliniowości i heteroskedastyczności. Na tej podstawie wybrano końcową specyfikację modelu, która łączy dobrą interpretowalność z satysfakcjonującym poziomem dopasowania do danych empirycznych.
 
 ```{r}
 df <- dane_imputed %>%
@@ -715,12 +804,10 @@ summary(m4)
 coeftest(m4, vcov = vcovHC(m4, type = "HC1"))
 bptest(m4)
 vif(m4)
-
 m_final <- lm( ln_price_m2 ~ ln_centre +ln_area +buildYear +floor +ln_poi +hasElevator +hasStorageRoom+ ln_centre:hasElevator+ln_centre:hasStorageRoom,data = df)
 summary(m_final)
 coeftest(m_final, vcov = vcovHC(m_final, "HC1"))
 vif(m_final)
-
 model_summary_extended <- tibble::tibble(
   Model = c("Model 0", "Model 1", "Model 2", "Model 3", "Model 4", "Model Final"),
   `R² (adj)` = c(
@@ -785,11 +872,70 @@ model_summary_extended <- tibble::tibble(
     sum(vif(m2) > 5),
     sum(vif(m3) > 5),
     sum(vif(m4) > 5),
-    sum(vif(m_final) > 5)
-  )
-)
+    sum(vif(m_final) > 5)))
+```
 
-# Generowanie tabeli z kableExtra
+# 1. Regresja hedoniczna – konstrukcja modeli i interpretacja wyników
+
+Celem analizy było oszacowanie wpływu lokalizacji, cech fizycznych mieszkania oraz elementów standardu technicznego na cenę mieszkań w Gdańsku, a także sprawdzenie, czy wybrane cechy standardu modyfikują zależność między odległością od centrum a ceną mieszkania. W tym celu zastosowano regresję hedoniczną, która jest standardowym narzędziem w badaniach rynku nieruchomości.
+
+Zmienną objaśnianą we wszystkich modelach była logarytmiczna cena za metr kwadratowy mieszkania (\ln(\text{price_m2})). Zastosowanie transformacji logarytmicznej pozwala ograniczyć problem heteroskedastyczności oraz umożliwia interpretację współczynników w kategoriach przybliżonych zmian procentowych.
+
+------------------------------------------------------------------------
+
+## Model 1 – efekt lokalizacji (model bazowy)
+
+Pierwszy model uwzględniał wyłącznie odległość mieszkania od centrum miasta, zapisaną w postaci logarytmu:
+
+[ \ln(\text{price_m2}) = \beta\_0 + \beta\_1 \ln(\text{centreDistance}) + \varepsilon]
+
+Wyniki wskazują na istotny statystycznie i ujemny wpływ odległości od centrum na cenę za metr kwadratowy. Oznacza to, że wzrost odległości od centrum o 1% wiąże się średnio ze spadkiem ceny za m² o około 0,12%. Rezultat ten jest zgodny z teorią renty gruntowej oraz wcześniejszymi badaniami empirycznymi dotyczącymi rynków mieszkaniowych.
+
+Niska wartość współczynnika determinacji (R² ≈ 7%) nie stanowi wady modelu, lecz potwierdza, że sama lokalizacja nie jest wystarczająca do wyjaśnienia zróżnicowania cen mieszkań.
+
+------------------------------------------------------------------------
+
+## Model 2 – cechy fizyczne i strukturalne mieszkania
+
+W kolejnym kroku do modelu dodano zmienne opisujące cechy fizyczne i techniczne budynku: metraż mieszkania (w postaci logarytmu), liczbę pokoi, rok budowy oraz położenie mieszkania w budynku (piętro i liczba kondygnacji).
+
+Dodanie tych zmiennych istotnie poprawiło dopasowanie modelu (R² ≈ 20%). Efekt odległości od centrum pozostał stabilny i istotny statystycznie, co świadczy o jego niezależnym wpływie na ceny mieszkań.
+
+Wyniki pokazują, że:
+
+-   liczba pokoi ma ujemny wpływ na cenę za m² – mieszkania z większą liczbą pokoi są przeciętnie tańsze w przeliczeniu na metr kwadratowy,
+-   rok budowy ma dodatni i silny wpływ na cenę – nowsze budynki są wyżej wyceniane,
+-   wpływ samego metrażu po uwzględnieniu liczby pokoi okazał się statystycznie nieistotny, co sugeruje częściowe dublowanie informacji zawartej w obu zmiennych.
+
+------------------------------------------------------------------------
+
+## Model 3 – otoczenie i dostępność usług
+
+Trzeci model rozszerzono o zmienne opisujące dostępność usług i infrastruktury miejskiej. Zastosowano zagregowaną miarę liczby punktów użyteczności publicznej (POI) w otoczeniu mieszkania oraz wybrane odległości do usług.
+
+Liczba punktów POI, po transformacji logarytmicznej, okazała się silnie dodatnio skorelowana z ceną mieszkań. Oznacza to, że większa dostępność usług i infrastruktury miejskiej podnosi atrakcyjność lokalizacji i znajduje odzwierciedlenie w wyższych cenach.
+
+Jednocześnie zauważono, że poszczególne miary odległości do usług są ze sobą silnie skorelowane, co prowadzi do problemu współliniowości. W dalszych etapach analizy zdecydowano się pozostawić jedynie odległość od centrum oraz zagregowaną miarę POI jako reprezentatywne zmienne lokalizacyjne.
+
+------------------------------------------------------------------------
+
+## Model 4 – standard techniczny mieszkania
+
+Czwarty model uwzględniał binarne zmienne opisujące standard techniczny mieszkania, takie jak obecność windy, ochrony czy komórki lokatorskiej.
+
+Wyniki wskazują, że:
+
+-   obecność windy oraz ochrony istotnie podnosi cenę za m²,
+-   efekt komórki lokatorskiej jest ujemny, co może wynikać z jej częstszego występowania w starszych budynkach o niższym standardzie,
+-   balkon i miejsce parkingowe nie wykazały istotnego wpływu po uwzględnieniu pozostałych cech.
+
+Oznacza to, że nie wszystkie elementy standardu są niezależnie wyceniane przez rynek. \## Model 5 – interakcje (test hipotezy głównej)
+
+Ostatni model miał na celu bezpośrednie przetestowanie hipotezy głównej poprzez wprowadzenie interakcji pomiędzy odległością od centrum a wybranymi cechami standardu technicznego (winda, komórka lokatorska).
+
+Choć znaki współczynników interakcji były zgodne z intuicją ekonomiczną, nie uzyskano jednoznacznej istotności statystycznej. Oznacza to, że standard techniczny nie zmienia w sposób istotny siły zależności między lokalizacją a ceną mieszkania, lecz wpływa głównie na poziom ceny.
+
+```{r}
 model_summary_extended %>%
   kable(
     format = "html",
@@ -801,17 +947,11 @@ model_summary_extended %>%
   column_spec(2:5, bold = TRUE) %>%
   column_spec(9, color = "red") 
 ```
-```
 
+Przeprowadzona analiza potwierdziła istnienie silnej i stabilnej zależności między odległością od centrum miasta a ceną mieszkań w Gdańsku. Lokalizacja pozostaje jednym z kluczowych czynników kształtujących ceny, nawet po uwzględnieniu cech fizycznych, otoczenia oraz standardu technicznego.
 
+Cechy standardu technicznego, takie jak winda czy ochrona, istotnie podnoszą poziom cen mieszkań, jednak nie modyfikują w sposób istotny wpływu odległości od centrum. Oznacza to, że standard działa głównie jako premia cenowa, a nie jako czynnik kompensujący gorszą lokalizację.
 
-```
+Hipoteza główna zakładająca łagodzenie negatywnego wpływu odległości od centrum przez standard techniczny nie została jednoznacznie potwierdzona. Jednocześnie hipotezy pomocnicze dotyczące wpływu lokalizacji, dostępności usług oraz cech technicznych na poziom cen znalazły potwierdzenie w wynikach empirycznych.
 
-
-
-
-
-
-
-
-```
+Uzyskane rezultaty wskazują, że dalsze badania mogłyby uwzględniać segmentację rynku (np. nowe i stare budownictwo) lub analizę dynamiczną opartą na danych z różnych okresów, co umożliwiłoby konstrukcję indeksu hedonicznego cen mieszkań.
