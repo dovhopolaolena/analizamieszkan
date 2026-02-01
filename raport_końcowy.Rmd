@@ -45,6 +45,27 @@ library(sandwich)
 library(lmtest)
 ```
 
+## Wprowadzenie
+
+Rynek nieruchomości mieszkaniowych w dużych miastach charakteryzuje się wysokim stopniem złożoności oraz znacznym zróżnicowaniem cen i cech oferowanych lokali. Na poziom cen mieszkań wpływają jednocześnie czynniki lokalizacyjne, strukturalne oraz związane ze standardem technicznym nieruchomości, a ich oddziaływanie często ma charakter nieliniowy i wzajemnie powiązany. W konsekwencji analiza rynku mieszkaniowego wymaga zastosowania zarówno metod eksploracyjnych, jak i narzędzi analizy statystycznej oraz ekonometrycznej.
+
+Miasto Gdańsk, jako jeden z głównych ośrodków miejskich w Polsce, stanowi interesujący obszar badań ze względu na dynamiczny rozwój urbanistyczny, zróżnicowaną strukturę przestrzenną oraz silne kontrasty pomiędzy centralnymi i peryferyjnymi lokalizacjami. Istotną rolę w kształtowaniu cen mieszkań odgrywa tu dostępność infrastruktury miejskiej, bliskość centrum, zagęszczenie punktów usługowych oraz standard techniczny budynków i lokali.
+Celem niniejszego projektu jest empiryczna analiza rynku mieszkań w Gdańsku z wykorzystaniem metod analizy danych dostępnych w środowisku R. Badanie obejmuje eksploracyjną analizę danych, ocenę rozkładów kluczowych zmiennych, identyfikację zależności korelacyjnych oraz zastosowanie testów nieparametrycznych i modeli regresji hedonicznej. Szczególny nacisk położono na ocenę wpływu lokalizacji (mierzonej m.in. odległością od centrum miasta) oraz standardu technicznego mieszkań na poziom cen, zarówno całkowitych, jak i cen za metr kwadratowy.
+
+Celem analizy jest ocena wpływu lokalizacji oraz standardu technicznego mieszkań na poziom cen na rynku mieszkaniowym w Gdańsku. W szczególności badanie koncentruje się na relacji pomiędzy odległością mieszkania od centrum miasta a ceną oraz na sprawdzeniu, czy wybrane cechy standardu technicznego modyfikują tę zależność. W związku z tym sformułowano następujące pytania badawcze i odpowiadające im hipotezy:
+
+H1. Wzrost odległości mieszkania od centrum miasta wiąże się ze spadkiem cen mieszkań oraz cen za metr kwadratowy.
+Hipoteza ta odzwierciedla klasyczne podejście ekonomiczne, zgodnie z którym atrakcyjność lokalizacji centralnych znajduje odzwierciedlenie w wyższych cenach nieruchomości.
+
+H2. Mieszkania posiadające wybrane cechy wyższego standardu technicznego (takie jak winda, ochrona, miejsce parkingowe, balkon czy komórka lokatorska) osiągają istotnie wyższe ceny za metr kwadratowy niż mieszkania pozbawione tych udogodnień.
+Hipoteza ta testowana jest z wykorzystaniem nieparametrycznych testów porównawczych, ze względu na skośne rozkłady cen.
+
+H3. Siła i kierunek zależności pomiędzy odległością od centrum a ceną za metr kwadratowy różnią się w zależności od standardu technicznego mieszkania.
+Hipoteza ta zakłada, że standard techniczny może modyfikować znaczenie lokalizacji, co badane jest poprzez porównanie korelacji w grupach mieszkań o różnym standardzie oraz poprzez zastosowanie interakcji w modelu regresji hedonicznej.
+
+H4. Metraż mieszkania jest dodatnio związany z ceną całkowitą oraz jednocześnie ujemnie związany z ceną za metr kwadratowy.
+Hipoteza ta odzwierciedla efekt skali, zgodnie z którym większe mieszkania są droższe w ujęciu bezwzględnym, lecz tańsze w przeliczeniu na jednostkę powierzchni.
+
 ## Wprowadzenie 
 
 Rynek nieruchomości mieszkaniowych w dużych miastach charakteryzuje się znaczną złożonością oraz silnym zróżnicowaniem cen i cech lokali. Miasto Gdańsk, jako jeden z głównych ośrodków miejskich w Polsce, stanowi interesujący obszar badań ze względu na dynamiczny rozwój urbanistyczny, zróżnicowaną strukturę dzielnic oraz istotny wpływ czynników lokalizacyjnych na ceny mieszkań.
@@ -91,6 +112,97 @@ kable(
     bootstrap_options = c("striped", "bordered"),
     full_width = FALSE
   )
+```
+
+### Pytania badawcze
+
+Celem analizy jest ocena wpływu lokalizacji oraz standardu technicznego mieszkania na poziom cen na rynku mieszkaniowym w Gdańsku. W szczególności badanie koncentruje się na zależności pomiędzy odległością mieszkania od centrum miasta a ceną oraz sprawdzeniu, czy wybrane cechy standardu technicznego modyfikują tę zależność. W związku z tym sformułowano następujące pytania badawcze:
+
+-   Czy wzrost odległości mieszkania od centrum miasta wiąże się ze spadkiem cen mieszkań oraz cen za metr kwadratowy?
+
+-   Czy mieszkania o wyższym standardzie technicznym osiągają wyższe ceny niż mieszkania pozbawione określonych udogodnień?
+
+-   Czy siła i kierunek zależności pomiędzy odległością od centrum a ceną za metr kwadratowy różnią się w zależności od standardu technicznego mieszkania?
+
+-   Czy metraż mieszkania jest dodatnio związany z ceną całkowitą oraz ujemnie związany z ceną za metr kwadratowy?
+
+## Przygotowanie i kontrola jakości danych
+
+W niniejszym rozdziale przedstawiono proces przygotowania danych do analizy cen mieszkań w Gdańsku. Obejmuje on wstępne przetwarzanie danych, analizę braków, walidację spójności logicznej oraz identyfikację obserwacji odstających, których celem było zapewnienie jakości i wiarygodności dalszych analiz statystycznych.
+
+### Wstępne przetwarzanie i selekcja danych
+
+W pierwszym etapie dane zostały ograniczone do obserwacji dotyczących miasta Gdańsk, co pozwoliło skoncentrować analizę na jednym, spójnym rynku lokalnym. Następnie przeprowadzono podstawowe czynności przygotowawcze obejmujące kontrolę duplikatów, selekcję zmiennych istotnych analitycznie, standaryzację typów danych oraz utworzenie zmiennej ceny za metr kwadratowy.
+
+```{r wstep, include=FALSE}
+dane<-read_csv("apartments_pl_2024_06.csv")
+dane<-filter(dane, city=="gdansk")
+sum(duplicated(dane))#  brak duplikatów-> mozna usunąć kolumne id i iine nie potrzebne kolumny
+# takie wstępne przygotowanie danych
+dane_gdansk <- dane %>%
+  select(-c(id, condition, buildingMaterial,city))%>%
+  mutate(across(where(is.character),as.factor))%>%
+  mutate(price_m2 = price / squareMeters)
+# slowniki do etykietowania zmiennych 
+var_labels <- c(
+  type = "Typ budynku",
+  squareMeters = "Powierzchnia mieszkania [m²]",
+  rooms = "Liczba pokoi",
+  floor = "Piętro",
+  floorCount = "Liczba kondygnacji w budynku",
+  buildYear = "Rok budowy",
+  latitude = "Szerokość geograficzna",
+  longitude = "Długość geograficzna",
+  centreDistance = "Odległość od centrum [km]",
+  poiCount = "Liczba punktów POI w pobliżu",
+  schoolDistance = "Odległość do szkoły [km]",
+  clinicDistance = "Odległość do przychodni [km]",
+  postOfficeDistance = "Odległość do poczty [km]",
+  kindergartenDistance = "Odległość do przedszkola [km]",
+  restaurantDistance = "Odległość do restauracji [km]",
+  collegeDistance = "Odległość do uczelni [km]",
+  pharmacyDistance = "Odległość do apteki [km]",
+  ownership = "Forma własności",
+  hasParkingSpace = "Miejsce parkingowe",
+  hasBalcony = "Balkon",
+  hasElevator = "Winda",
+  hasSecurity = "Ochrona",
+  hasStorageRoom = "Komórka lokatorska",
+  price = "Cena całkowita [PLN]",
+  price_m2 = "Cena za metr kwadratowy [PLN/m²]"
+)
+var_labels <- as.list(var_labels)
+label_vars <- function(x) {
+  sapply(as.character(x), function(v) var_labels[[v]])
+}
+```
+
+W wyniku kontroli nie stwierdzono występowania duplikatów obserwacji, co pozwoliło na zachowanie pełnej liczby rekordów w dalszej analizie.
+
+### Analiza braków danych
+
+W niniejszym podrozdziale przeprowadzono analizę występowania braków danych w zbiorze ofert mieszkaniowych zlokalizowanych w Gdańsku. Celem tego etapu było określenie zakresu i struktury braków danych oraz ocena ich potencjalnego wpływu na dalszą analizę statystyczną.
+
+```{r braki danych, echo=FALSE}
+miss_var_summary(dane_gdansk) |>
+  slice(1:12) |>
+  rename(
+    Zmienna = variable,
+    `Liczba braków` = n_miss,
+    `Udział braków [%]` = pct_miss
+  ) |>
+  gt() |>
+  tab_header(
+    title = "Występowanie braków danych",
+    subtitle = "Podsumowanie dla zmiennych w zbiorze danych (niezaznaczone zmienne nie posiadają braków danych)"
+  ) |>
+  fmt_number(
+    columns = `Udział braków [%]`,
+    decimals = 2
+  )
+```
+
+=======
 ```
 ### Pytania badawcze 
 Celem analizy jest ocena wpływu lokalizacji oraz standardu technicznego mieszkania na poziom cen na rynku mieszkaniowym w Gdańsku. W szczególności badanie koncentruje się na zależności pomiędzy odległością mieszkania od centrum miasta a ceną oraz sprawdzeniu, czy wybrane cechy standardu technicznego modyfikują tę zależność.
@@ -170,12 +282,16 @@ miss_var_summary(dane_gdansk) |>
   )
 ```
 
+
 Wyniki analizy wskazują, że większość zmiennych w zbiorze danych nie zawiera braków lub charakteryzuje się ich niewielkim udziałem. Braki danych występują jedynie w wybranych zmiennych i nie mają charakteru dominującego ani systematycznego, co pozwala uznać zbiór danych za kompletny w stopniu wystarczającym do dalszych analiz.
 
 Ze względu na występowanie braków w wybranych zmiennych podjęto decyzję o zastosowaniu imputacji wielokrotnej w kolejnym etapie, aby ograniczyć utratę informacji i zachować liczebność próby.
 
 ### Walidacja spójności danych
+
 W celu oceny poprawności logicznej i dziedzinowej danych przeprowadzono walidację spójności z wykorzystaniem zestawu reguł twardych oraz miękkich. Reguły twarde obejmowały jednoznaczne ograniczenia dziedzinowe i logiczne, natomiast reguły miękkie miały charakter heurystyczny i służyły identyfikacji obserwacji potencjalnie nietypowych.
+
+
 ```{r walidacja reguł twardych i miękkich, include=FALSE}
 rules_hard <- validator(
 
@@ -353,10 +469,12 @@ tab_soft |>
     data_row.padding = px(3)
   )
 ```
+
 Wyniki walidacji reguł twardych nie wykazały istotnych naruszeń spójności danych, co pozwala uznać zbiór za poprawny pod względem podstawowych ograniczeń logicznych i dziedzinowych. Reguły miękkie wskazały jedynie niewielką liczbę obserwacji nietypowych, które pozostawiono w zbiorze danych jako potencjalnie realistyczne przypadki rynkowe.
 
 ### Identyfikacja obserwacji odstających 
 W kolejnym etapie przeprowadzono diagnostykę obserwacji odstających z wykorzystaniem metody IQR. Celem analizy było określenie skali występowania wartości nietypowych w poszczególnych zmiennych numerycznych oraz ocena ich potencjalnego wpływu na dalsze etapy analizy.
+
 ```{r iqr, echo=FALSE}
 num_vars <- dane_gdansk %>% select(where(is.numeric))
 
@@ -381,10 +499,12 @@ kable(iqr_outliers %>%
       format = "html", digits = 2,caption = "Identyfikacja wartości odstających (IQR)",col.names = c("Zmienna", "% obserwacji odstających")) %>%
 kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
+
 Zidentyfikowane obserwacje odstające nie zostały usunięte ze zbioru danych, ponieważ mogą one odzwierciedlać rzeczywiste zróżnicowanie cen i cech mieszkań na rynku nieruchomości.
 
 ### Postępowanie z brakami danych i imputacja wielokrotna
 W przypadku wybranych zmiennych, dla których występowały braki danych, przeprowadzono procedurę imputacji wielokrotnej w celu ograniczenia utraty informacji. Przed imputacją oceniono mechanizm braków danych, a następnie zastosowano metodę MICE, dostosowując modele imputacyjne do charakteru poszczególnych zmiennych. Poprawność imputacji oceniono na podstawie diagnostyki rozkładów imputowanych wartości.
+
 ```{r mcar_table, echo=FALSE}
 mcar_test(dane_gdansk) %>%
   transmute(
@@ -404,11 +524,14 @@ mcar_test(dane_gdansk) %>%
     position = "center"
   )
 ```
+
 Wynik testu MCAR (Little’a) wskazuje na odrzucenie hipotezy o całkowicie losowym mechanizmie braków danych (p < 0,001). W związku z tym przyjęto, że braki danych można traktować jako zależne od obserwowanych zmiennych (założenie MAR) i zastosowano imputację wielokrotną metodą MICE.
+
 
 ```{r tabela br danych, echo=FALSE }
 gg_miss_var(dane_gdansk)
 ```
+
 Wizualizacja braków danych potwierdza, że braki występują jedynie w wybranych zmiennych i mają ograniczony zakres. Rozkład braków danych jest spójny z wynikami analizy tabelarycznej i nie wskazuje na koncentrację braków w jednej lub kilku kluczowych zmiennych.
 
 ```{r imp, include=FALSE}
@@ -437,27 +560,32 @@ imp <- mice(dane_gdansk, method = methods, predictorMatrix = pred, m = 5, maxit 
 dane_imputed <- complete(imp, 1)
 
 ```
+
 Imputację braków danych przeprowadzono z wykorzystaniem metody MICE (Multiple Imputation by Chained Equations). Dla zmiennych ilościowych (`floor`, `buildYear`, `collegeDistance`) zastosowano metodę predykcyjnego dopasowania średnich (PMM), natomiast dla zmiennej binarnej `hasElevator` wykorzystano regresję logistyczną. Macierz predyktorów zdefiniowano selektywnie, uwzględniając wyłącznie zmienne merytorycznie powiązane z imputowanymi cechami. W dalszej analizie wykorzystano kompletny zbiór danych po imputacji (`dane_imputed`).
 
 ```{r imp_gr, echo=FALSE}
 densityplot(imp, ~ floor)
 ```
+
 Wykres przedstawia porównanie rozkładów wartości obserwowanych i imputowanych zmiennej piętro. Rozkłady po imputacji zachowują strukturę danych pierwotnych, bez widocznej koncentracji imputowanych wartości w pojedynczych punktach ani przesunięcia zakresu zmienności.
 
 ```{r imp 2, echo=FALSE}
 densityplot(imp, ~ buildYear)
 ```
+
 Wykres gęstości dla zmiennej rok budowy wskazuje, że imputowane wartości są zgodne z rozkładem obserwowanych danych. Nie zaobserwowano sztucznego wygładzenia ani generowania nierealistycznych wartości, co świadczy o poprawnym dopasowaniu procedury imputacji.
 
 ```{r imp3, echo=FALSE}
 densityplot(imp, ~ collegeDistance)
 ```
+
 Porównanie rozkładów zmiennej odległość do uczelni pokazuje, że imputacja nie zniekształca charakteru danych przestrzennych. Rozkłady wartości imputowanych mieszczą się w zakresie danych obserwowanych i odzwierciedlają ich rzeczywistą zmienność.
 
 ## Analiza esploracyjna danych 
 W niniejszym rozdziale przeprowadzono analizę eksploracyjną danych, koncentrując się na wizualizacji zależności pomiędzy ceną mieszkań a ich cechami ilościowymi, jakościowymi oraz lokalizacyjnymi, w tym rozmieszczeniu przestrzennym ofert.
 
 ### Analiza opisowa zmiennych ilościowych i dyskretnych
+
 W niniejszym podrozdziale przedstawiono analizę opisową zmiennych ilościowych i dyskretnych wykorzystanych w dalszych etapach badania. Zaprezentowano podstawowe miary położenia, zróżnicowania oraz zakresy zmienności, co pozwala scharakteryzować strukturę danych przed przejściem do analizy wizualnej i wnioskowania statystycznego.
 
 ```{r zm dyskretne, echo=FALSE}
@@ -480,6 +608,7 @@ tab_disc <- dane_imputed %>%
 kable(tab_disc, format = "html", digits = 2, caption = "Statystyki opisowe (zmienne dyscretne)", col.names = c("Zmienna", "% kompletności", "Średnia", "Odch. std.", "Min", "Q1", "Mediana", "Q3", "Max")) %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
+
 Tabela prezentuje statystyki opisowe zmiennych dyskretnych, które cechują się niemal pełną kompletnością danych. Liczba pokoi i piętro mają niewielką zmienność i skoncentrowane rozkłady wokół wartości typowych dla mieszkań miejskich. Liczba kondygnacji oraz rok budowy wykazują większe zróżnicowanie, co odzwierciedla heterogeniczność zabudowy. Zmienna opisująca liczbę punktów POI w pobliżu charakteryzuje się bardzo dużym rozrzutem i prawostronną asymetrią, wskazując na silne zróżnicowanie lokalizacyjne ofert.
 
 
@@ -504,6 +633,7 @@ tab_num <- dane_imputed %>%
 kable(tab_num, format = "html", digits = 2, caption = "Statystyki opisowe (zmienne numeryczne)", col.names = c("Zmienna", "% kompletności", "Średnia", "Odch. std.", "Min", "Q1", "Mediana", "Q3", "Max")) %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
+
 Tabela przedstawia statystyki opisowe zmiennych ilościowych i dyskretnych, dla których nie występują braki danych. Rozkład powierzchni mieszkań jest umiarkowanie zróżnicowany i prawostronnie asymetryczny. Ceny całkowite oraz ceny za metr kwadratowy charakteryzują się dużą zmiennością i wyraźną prawostronną asymetrią, co wskazuje na istotny wpływ drogich ofert na wartości średnie i uzasadnia dalszą analizę z wykorzystaniem miar pozycyjnych.
 
 
@@ -533,6 +663,7 @@ kable(tab_od, format = "html", digits = 2, caption = "Statystyki opisowe (zmienn
 Tabela przedstawia statystyki opisowe zmiennych odległościowych, które charakteryzują się niemal pełną kompletnością danych. Odległość od centrum wykazuje największe zróżnicowanie spośród analizowanych zmiennych, co odzwierciedla przestrzenne rozproszenie ofert. Odległości do podstawowych usług i obiektów użyteczności publicznej są relatywnie niewielkie i skoncentrowane wokół niskich wartości, jednak w większości przypadków widoczna jest prawostronna asymetria rozkładów, wskazująca na obecność ofert położonych znacznie dalej od infrastruktury.
 
 
+
 ```{r zm kategoryczne, include=FALSE}
 cat_vars <- c(
   "type","ownership","hasParkingSpace","hasBalcony",
@@ -549,7 +680,7 @@ tab_cat_dist <-dane_imputed %>%
   ungroup()
 ```
 
-### Analiza opisowa zmiennych jakościowych
+
 W niniejszym podrozdziale przeprowadzono analizę zmiennych jakościowych opisujących cechy techniczne mieszkań oraz elementy ich wyposażenia. Celem tej części analizy eksploracyjnej jest ocena kompletności danych, liczby kategorii oraz struktury częstości występowania poszczególnych cech, a także identyfikacja podstawowych zależności pomiędzy wybranymi zmiennymi jakościowymi.
 
 
@@ -573,6 +704,8 @@ tab_cat_meta <- dane_imputed %>%
 kable(tab_cat_meta, format = "html", digits = 2, caption = "Statystyki opisowe zmiennych jakościowych", col.names = c("Zmienna", "Liczba obserwacji", "Liczba braków", "% kompletności", "Liczba kategorii")) %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
+
+
 Tabela przedstawia liczbę obserwacji, braki danych, poziom kompletności oraz liczbę kategorii dla zmiennych jakościowych. Zmienne cechują się wysoką kompletnością, a liczba kategorii jest zgodna z ich charakterem, co wskazuje na dobrą jakość danych.
 
 ```{r waerstdyfug, echo=FALSE}
@@ -593,6 +726,7 @@ tab_bin <- dane_imputed %>%
 kable(tab_bin, format = "html", digits = 2, caption = "Procent 'tak' w zmiennych binarnych", col.names = c("Zmienna", "Liczba obserwacji", "Liczba braków", "Liczba niebraków", "Liczba 'tak'", "% 'tak'")) %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
+
 Zestawienie prezentuje udział odpowiedzi pozytywnych w zmiennych binarnych opisujących wyposażenie mieszkań. Widoczne zróżnicowanie częstości występowania poszczególnych udogodnień wskazuje na ich potencjalną rolę w dalszej analizie ofert.
 
 ```{r balkon x winda, echo=FALSE}
@@ -609,10 +743,12 @@ chi
 kable(tab_cont, format = "html", digits = 2, caption = "Tabela kontyngencji: Balkon vs Winda", col.names = c("Balkon", "Winda", "Liczba obserwacji", "% w wierszu")) %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
+
 Tabela kontyngencji oraz wynik testu chi-kwadrat wskazują na statystyczną zależność pomiędzy występowaniem balkonu i windy, co sugeruje współwystępowanie tych cech w analizowanych ofertach.
 
 ###Wizualizacja zależności cen od cech mieszkań 
 W niniejszym podrozdziale przedstawiono wizualną analizę zależności pomiędzy cenami mieszkań a wybranymi cechami strukturalnymi, lokalizacyjnymi oraz elementami wyposażenia. Celem tej części analizy eksploracyjnej jest identyfikacja ogólnych wzorców i zróżnicowań cenowych, które mogą stanowić podstawę do dalszych analiz statystycznych i modelowych.
+
 ```{r Cena mieszkań a liczba pokoi, echo=FALSE}
 ggplot(dane_imputed, aes(x = factor(rooms), y = price)) +
   geom_boxplot(fill = "#9ecae1") +
@@ -624,6 +760,8 @@ ggplot(dane_imputed, aes(x = factor(rooms), y = price)) +
   ) +
   theme_minimal()
 ```
+
+
 Wykres wskazuje na wzrost mediany ceny mieszkań wraz ze wzrostem liczby pokoi, przy jednoczesnym zwiększaniu się zróżnicowania cen w wyższych kategoriach. Widoczna jest również obecność obserwacji odstających, szczególnie dla mieszkań o większej liczbie pokoi.
 
 ```{r Rozkład cen mieszkań według przedziałów metrażu (binning metrażu), echo=FALSE}
@@ -645,6 +783,7 @@ dane_imputed %>%
   ) +
   theme_minimal()
 ```
+
 Ceny mieszkań rosną wraz z przechodzeniem do wyższych przedziałów metrażu, przy czym rozkłady w poszczególnych grupach wykazują rosnącą zmienność. Największe zróżnicowanie cen obserwowane jest dla mieszkań o dużej powierzchni.
 
 ```{r Cena za m² vs odległość od centrum (binning odległości), echo=FALSE}
@@ -666,6 +805,7 @@ dane_imputed %>%
   ) +
   theme_minimal()
 ```
+
 Wykres pokazuje wyraźny spadek mediany ceny za metr kwadratowy wraz ze wzrostem odległości od centrum miasta. Jednocześnie bliższe lokalizacje charakteryzują się większym rozrzutem cen, co sugeruje większą heterogeniczność ofert w centralnych obszarach.
 
 ```{r Cena za m² vs piętro (binning piętra), z podziałem na windę (fill + dodge), echo=FALSE}
@@ -686,6 +826,7 @@ dane_imputed %>%
   ) +
   theme_minimal()
 ```
+
 Cena za metr kwadratowy rośnie wraz z numerem piętra, szczególnie w budynkach wyposażonych w windę. Różnice pomiędzy lokalami z windą i bez windy stają się bardziej widoczne na wyższych kondygnacjach.
 
 ```{r Rozkład ceny za m² dla balkonu vs braku balkonu, echo=FALSE}
@@ -700,6 +841,7 @@ ggplot(dane_imputed, aes(x = hasBalcony, y = price_m2)) +
   ) +
   theme_minimal()
 ```
+
 Mieszkania z balkonem charakteryzują się wyższą medianą ceny za metr kwadratowy w porównaniu do lokali bez balkonu. Rozkłady wskazują również na większą zmienność cen w grupie mieszkań z balkonem.
 
 ```{r ozkładu ceny za m² względem odległości od centrum, echo=FALSE}
@@ -721,6 +863,7 @@ dane_imputed %>%
   ) +
   theme_minimal()
 ```
+
 Rozkłady gęstości potwierdzają przesuwanie się rozkładu cen za metr kwadratowy w stronę niższych wartości wraz ze wzrostem odległości od centrum. Jednocześnie dla lokalizacji centralnych obserwowany jest szerszy zakres cen.
 
 ```{r Mediana ceny za m² według liczby pokoi i odległości od centrum, echo=FALSE}
@@ -742,11 +885,13 @@ ggplot(heat_data, aes(x = rooms, y = centre_bin, fill = median)) +
   ) +
   theme_minimal()
 ```
+
 Mapa cieplna pokazuje, że najwyższe mediany cen za metr kwadratowy występują dla mieszkań położonych najbliżej centrum, niezależnie od liczby pokoi. Wraz ze wzrostem odległości od centrum mediany systematycznie maleją, a wpływ liczby pokoi staje się mniej wyraźny.
 
 
 ### Analiza przestrzenna rynku mieszkaniowego 
 W niniejszym podrozdziale przeprowadzono analizę przestrzenną rynku mieszkaniowego z wykorzystaniem współrzędnych geograficznych ofert. Analiza ta ma na celu rozpoznanie rozmieszczenia ofert w przestrzeni miejskiej, identyfikację obszarów koncentracji ogłoszeń oraz wstępną ocenę przestrzennego zróżnicowania cen za metr kwadratowy. Wizualizacje mapowe pozwalają na uzupełnienie wcześniejszych analiz opisowych i lepsze uchwycenie zależności przestrzennych niewidocznych w klasycznych zestawieniach tabelarycznych.
+
 ```{r Mapa punktowa - cena za m2, echo=FALSE}
 leaflet(dane_imputed) %>%
   addProviderTiles("CartoDB.Positron") %>%
@@ -760,6 +905,7 @@ leaflet(dane_imputed) %>%
     popup = ~paste0("Cena/m²: ", scales::comma(price_m2), " PLN")
   )
 ```
+
 Mapa punktowa przedstawia lokalizację poszczególnych ofert mieszkaniowych wraz z odpowiadającą im ceną za metr kwadratowy zakodowaną kolorem. Widoczne jest wyraźne zróżnicowanie przestrzenne cen, z obszarami skupiającymi oferty o wyższych oraz niższych poziomach cen, co wskazuje na istotną rolę lokalizacji w kształtowaniu wartości nieruchomości.
 
 ```{r mapa punktowa z klastrowaniem, echo=FALSE}
@@ -778,6 +924,7 @@ leaflet(dane_imputed) %>%
   addLegend("bottomright", pal = pal, values = ~price_m2,
             title = "Cena za m² [PLN]", labFormat = labelFormat())
 ```
+
 Zastosowanie mechanizmu klastrowania markerów umożliwia czytelne przedstawienie rozmieszczenia ofert w obszarach o dużym zagęszczeniu punktów. Wizualizacja ta pozwala na łatwiejszą identyfikację rejonów o wysokiej liczbie ogłoszeń oraz ocenę, czy wysokie i niskie ceny występują w sposób przestrzennie skupiony.
 
 ```{r heatmapa gestosci ofert, echo=FALSE}
@@ -789,6 +936,7 @@ leaflet(dane_imputed) %>%
     max = 1
   )
 ```
+
 Mapa gęstości ofert prezentuje przestrzenną koncentrację ogłoszeń mieszkaniowych bez uwzględniania poziomu cen. Najciemniejsze obszary wskazują rejony o największej liczbie ofert, co może odzwierciedlać intensywność zabudowy mieszkaniowej lub większą aktywność rynku nieruchomości w tych lokalizacjach.
 
 ```{r heatmapa "gdzie drogo", echo=FALSE}
@@ -801,7 +949,9 @@ leaflet(dane_imputed) %>%
     max = max(dane_imputed$price_m2, na.rm = TRUE)
   )
 ```
+
 Mapa ciepła ważona ceną za metr kwadratowy łączy informacje o lokalizacji ofert z poziomem cen, umożliwiając identyfikację obszarów charakteryzujących się wysokimi wartościami cenowymi. W przeciwieństwie do mapy gęstości ofert, wizualizacja ta akcentuje przestrzenne skupiska drogich nieruchomości, niezależnie od liczby występujących tam ogłoszeń.
+>>>>>>> fc92ca1273fc05ccb07e5015642bac138fd3b072
 ```{r}
 h1_results <- dane_imputed %>%
   cor_test(centreDistance, c(price, price_m2), method = "spearman")
@@ -1136,6 +1286,6 @@ model_summary_extended %>%
   row_spec(0, bold = TRUE, background = "#D3D3D3") %>%
   column_spec(2:5, bold = TRUE) %>%
   column_spec(9, color = "red") 
-
-
 ```
+
+
